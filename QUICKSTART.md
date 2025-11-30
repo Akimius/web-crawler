@@ -32,7 +32,7 @@ docker-compose run --rm crawler python cli.py stats
 docker-compose run --rm crawler python cli.py articles --limit 10
 
 # Search for articles
-docker-compose run --rm crawler python cli.py search "technology"
+docker compose run --rm crawler python cli.py search "technology"
 ```
 
 ### 5. (Optional) Setup Scheduled Crawling
