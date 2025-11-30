@@ -68,31 +68,54 @@ def list_articles(db: Database, limit: int = 20, source_id: int = None):
         print()
 
 
-def search_articles(db: Database, keyword: str, limit: int = 20):
-    """Search articles by keyword"""
+def search_articles(db: Database, keyword: str, limit: int = 20, start_date: str = None, end_date: str = None):
+    """Search articles by keyword with optional date range"""
     with db.get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute('''
+
+        # Build query based on date filters
+        query = '''
             SELECT a.*, s.name as source_name
             FROM articles a
             JOIN sources s ON a.source_id = s.id
-            WHERE a.title LIKE ? OR a.content LIKE ?
-            ORDER BY a.published_date DESC
-            LIMIT ?
-        ''', (f'%{keyword}%', f'%{keyword}%', limit))
-        
+            WHERE (a.title LIKE ? OR a.content LIKE ?)
+        '''
+        params = [f'%{keyword}%', f'%{keyword}%']
+
+        # Add date range filters if provided
+        if start_date and end_date:
+            query += ' AND a.published_date BETWEEN ? AND ?'
+            params.extend([start_date, end_date])
+        elif start_date:
+            query += ' AND a.published_date >= ?'
+            params.append(start_date)
+        elif end_date:
+            query += ' AND a.published_date <= ?'
+            params.append(end_date)
+
+        query += ' ORDER BY a.published_date DESC LIMIT ?'
+        params.append(limit)
+
+        cursor.execute(query, params)
         articles = [dict(row) for row in cursor.fetchall()]
-    
+
     if not articles:
-        print(f"No articles found matching '{keyword}'.")
+        date_info = ""
+        if start_date or end_date:
+            date_info = f" in date range {start_date or 'any'} to {end_date or 'any'}"
+        print(f"No articles found matching '{keyword}'{date_info}.")
         return
-    
-    print(f"\nFound {len(articles)} articles matching '{keyword}':\n")
-    
+
+    date_range = ""
+    if start_date or end_date:
+        date_range = f" (from {start_date or 'any'} to {end_date or 'any'})"
+
+    print(f"\nFound {len(articles)} articles matching '{keyword}'{date_range}:\n")
+
     for idx, article in enumerate(articles, 1):
         source_name = article.get('source_name', 'Unknown')
         published = article['published_date'] or 'Unknown date'
-        
+
         print(f"{idx}. [{source_name}] {article['title']}")
         print(f"   Published: {published}")
         print(f"   URL: {article['url']}")
@@ -159,6 +182,8 @@ def main():
     search_parser = subparsers.add_parser('search', help='Search articles')
     search_parser.add_argument('keyword', help='Keyword to search for')
     search_parser.add_argument('--limit', type=int, default=20, help='Number of results')
+    search_parser.add_argument('--from', dest='start_date', help='Start date (YYYY-MM-DD format)')
+    search_parser.add_argument('--to', dest='end_date', help='End date (YYYY-MM-DD format)')
     
     # Stats command
     subparsers.add_parser('stats', help='Show database statistics')
@@ -180,7 +205,8 @@ def main():
     elif args.command == 'articles':
         list_articles(db, limit=args.limit, source_id=args.source)
     elif args.command == 'search':
-        search_articles(db, args.keyword, limit=args.limit)
+        search_articles(db, args.keyword, limit=args.limit,
+                       start_date=args.start_date, end_date=args.end_date)
     elif args.command == 'stats':
         show_stats(db)
     else:
