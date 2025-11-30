@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from app.scrapers.base_crawler import BaseCrawler
+from scrapers.base_crawler import BaseCrawler
 
 logger = logging.getLogger(__name__)
 

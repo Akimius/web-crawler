@@ -1,11 +1,11 @@
 import logging
 import os
 from typing import List, Dict, Any, Type
-from app.models.database import Database, Source, Article
-from app.scrapers.base_crawler import BaseCrawler
-from app.parsers.bbc_parser import BBCNewsCrawler
-from app.parsers.guardian_parser import GuardianNewsCrawler
-from app.parsers.ukrpravda_parser import UkrPravdaCrawler
+from models.database import Database, Source, Article
+from scrapers.base_crawler import BaseCrawler
+from parsers.bbc_parser import BBCNewsCrawler
+from parsers.guardian_parser import GuardianNewsCrawler
+from parsers.ukrpravda_parser import UkrPravdaCrawler
 
 logger = logging.getLogger(__name__)
 
