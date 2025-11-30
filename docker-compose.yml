@@ -1,0 +1,31 @@
+services:
+  crawler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: news_crawler
+    volumes:
+      - ./app:/app
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/Kiev
+    restart: unless-stopped
+    # Uncomment for scheduled crawling
+    # command: python scheduler.py
+    
+  # Optional: Add a web UI to monitor crawler
+  # web:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: crawler_web
+  #   volumes:
+  #     - ./app:/app
+  #     - ./data:/app/data
+  #   ports:
+  #     - "8000:8000"
+  #   command: python -m flask run --host=0.0.0.0 --port=8000
+  #   depends_on:
+  #     - crawler
