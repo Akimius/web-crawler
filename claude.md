@@ -20,13 +20,13 @@ A Docker-based Python web crawler that parses news sites and stores articles in 
 ./setup.sh
 
 # 2. Build Docker image
-docker-compose build
+docker compose build
 
 # 3. Run first crawl
-docker-compose run --rm crawler python main.py
+docker compose run --rm crawler python main.py
 
 # 4. View statistics
-docker-compose run --rm crawler python cli.py stats
+docker compose run --rm crawler python cli.py stats
 ```
 
 Or using Makefile:
@@ -107,7 +107,7 @@ crawler/
 ├── logs/                # Application logs
 │   └── crawler.log      # Created automatically
 ├── .env                 # Configuration (create from .env.example)
-├── docker-compose.yml   # Docker orchestration
+├── docker compose.yml   # Docker orchestration
 ├── Dockerfile           # Container definition
 ├── requirements.txt     # Python dependencies
 ├── Makefile             # Convenience commands
@@ -119,7 +119,7 @@ crawler/
 ### One-Time Crawl
 ```bash
 # Using Docker Compose
-docker-compose run --rm crawler python main.py
+docker compose run --rm crawler python main.py
 
 # Using Makefile
 make crawl
@@ -128,13 +128,13 @@ make crawl
 ### Scheduled Crawling (Background)
 ```bash
 # Start scheduler
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f crawler
+docker compose logs -f crawler
 
 # Stop scheduler
-docker-compose down
+docker compose down
 ```
 
 ### Database Queries
@@ -142,16 +142,16 @@ docker-compose down
 #### Using CLI Tool
 ```bash
 # View statistics
-docker-compose run --rm crawler python cli.py stats
+docker compose run --rm crawler python cli.py stats
 
 # List all sources
-docker-compose run --rm crawler python cli.py sources
+docker compose run --rm crawler python cli.py sources
 
 # View recent articles
-docker-compose run --rm crawler python cli.py articles --limit 10
+docker compose run --rm crawler python cli.py articles --limit 10
 
 # Search articles
-docker-compose run --rm crawler python cli.py search "keyword"
+docker compose run --rm crawler python cli.py search "keyword"
 ```
 
 #### Direct SQLite Access
@@ -299,12 +299,12 @@ python app/cli.py stats
 
 ### Enter Container for Debugging
 ```bash
-docker-compose run --rm crawler bash
+docker compose run --rm crawler bash
 ```
 
 ### Debug Single Source
 ```bash
-docker-compose run --rm crawler python -c "
+docker compose run --rm crawler python -c "
 from utils.crawler_manager import CrawlerManager
 manager = CrawlerManager('data/news.db')
 stats = manager.crawl_source(1)  # Crawl source ID 1
@@ -317,7 +317,7 @@ print(stats)
 ### Database Locked Error
 ```bash
 # Stop all containers
-docker-compose down
+docker compose down
 
 # Retry operation
 make crawl
@@ -345,7 +345,7 @@ chmod 777 data logs
 ```bash
 # Ubuntu/Debian
 sudo apt-get update
-sudo apt-get install docker.io docker-compose
+sudo apt-get install docker.io docker compose
 
 # macOS (Homebrew)
 brew install --cask docker
