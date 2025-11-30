@@ -6,30 +6,35 @@ from scrapers.base_crawler import BaseCrawler
 from parsers.bbc_parser import BBCNewsCrawler
 from parsers.guardian_parser import GuardianNewsCrawler
 from parsers.ukrpravda_parser import UkrPravdaCrawler
+from parsers.rbc_ukraine_parser import RBCUkraineCrawler
 
 logger = logging.getLogger(__name__)
 
 
 class CrawlerManager:
     """Manages all crawlers and coordinates scraping"""
-    
+
     # Registry of available parsers
     PARSERS: Dict[str, Type[BaseCrawler]] = {
         'BBCNewsCrawler': BBCNewsCrawler,
         'GuardianNewsCrawler': GuardianNewsCrawler,
         'UkrPravdaCrawler': UkrPravdaCrawler,
+        'RBCUkraineCrawler': RBCUkraineCrawler,
     }
     
-    def __init__(self, db_path: str, user_agent: str = None, 
-                 request_delay: float = 1.0, timeout: int = 30):
+    def __init__(self, db_path: str, user_agent: str = None,
+                 request_delay: float = 1.0, timeout: int = 30,
+                 start_date: str = None, end_date: str = None):
         self.db = Database(db_path)
         self.source_model = Source(self.db)
         self.article_model = Article(self.db)
-        
+
         self.user_agent = user_agent
         self.request_delay = request_delay
         self.timeout = timeout
-        
+        self.start_date = start_date
+        self.end_date = end_date
+
         self.stats = {
             'sources_crawled': 0,
             'articles_found': 0,
@@ -71,7 +76,9 @@ class CrawlerManager:
         crawler = crawler_cls(
             user_agent=self.user_agent,
             request_delay=self.request_delay,
-            timeout=self.timeout
+            timeout=self.timeout,
+            start_date=self.start_date,
+            end_date=self.end_date
         )
         
         try:

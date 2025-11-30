@@ -13,18 +13,21 @@ logger = logging.getLogger(__name__)
 
 class BaseCrawler(ABC):
     """Base crawler class with common functionality"""
-    
-    def __init__(self, source_url: str, user_agent: str = None, 
-                 request_delay: float = 1.0, timeout: int = 30, max_retries: int = 3):
+
+    def __init__(self, source_url: str, user_agent: str = None,
+                 request_delay: float = 1.0, timeout: int = 30, max_retries: int = 3,
+                 start_date: str = None, end_date: str = None):
         self.source_url = source_url
         self.base_domain = urlparse(source_url).netloc
         self.request_delay = request_delay
         self.timeout = timeout
         self.max_retries = max_retries
-        
+        self.start_date = start_date
+        self.end_date = end_date
+
         # Setup session with retries
         self.session = self._create_session(user_agent or self._get_default_user_agent())
-        
+
         # Track last request time for rate limiting
         self.last_request_time = 0
     
@@ -96,6 +99,30 @@ class BaseCrawler(ABC):
             return bool(parsed.netloc) and bool(parsed.scheme)
         except Exception:
             return False
+
+    def is_date_in_range(self, published_date: str) -> bool:
+        """Check if article date is within the configured date range"""
+        if not published_date:
+            # If no date available, include the article by default
+            return True
+
+        # If no date filters configured, include all articles
+        if not self.start_date and not self.end_date:
+            return True
+
+        try:
+            # Check date range
+            if self.start_date and self.end_date:
+                return self.start_date <= published_date <= self.end_date
+            elif self.start_date:
+                return published_date >= self.start_date
+            elif self.end_date:
+                return published_date <= self.end_date
+        except Exception as e:
+            logger.warning(f"Error comparing dates: {e}")
+            return True  # Include article if date comparison fails
+
+        return True
     
     def extract_text(self, soup: BeautifulSoup, selector: str, 
                      default: str = '', strip: bool = True) -> str:
@@ -139,23 +166,39 @@ class BaseCrawler(ABC):
         Returns list of parsed articles.
         """
         logger.info(f"Starting crawl for: {self.source_url}")
-        
+
+        # Log date filtering if configured
+        if self.start_date or self.end_date:
+            date_range = f"from {self.start_date or 'any'} to {self.end_date or 'any'}"
+            logger.info(f"Date filtering enabled: {date_range}")
+
         # Get article URLs
         article_urls = self.get_article_urls()
         logger.info(f"Found {len(article_urls)} article URLs")
-        
+
         # Parse each article
         articles = []
+        filtered_count = 0
         for idx, url in enumerate(article_urls, 1):
             logger.info(f"Processing article {idx}/{len(article_urls)}: {url}")
-            
+
             article_data = self.parse_article(url)
             if article_data:
                 article_data['url'] = url
-                articles.append(article_data)
+
+                # Filter by date if configured
+                if self.is_date_in_range(article_data.get('published_date')):
+                    articles.append(article_data)
+                else:
+                    published_date = article_data.get('published_date', 'Unknown')
+                    logger.debug(f"Article filtered out by date: {published_date}")
+                    filtered_count += 1
             else:
                 logger.warning(f"Failed to parse article: {url}")
-        
+
+        if filtered_count > 0:
+            logger.info(f"Filtered out {filtered_count} articles by date range")
+
         logger.info(f"Successfully parsed {len(articles)}/{len(article_urls)} articles")
         return articles
     

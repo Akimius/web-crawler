@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 def init_sources(manager: CrawlerManager):
     """Initialize default news sources"""
+    # Get today's date for RBC Ukraine archive
+    from datetime import datetime
+    today = datetime.now().strftime('%Y-%m-%d')
+
     sources = [
         {
             'name': 'BBC News',
@@ -40,6 +44,11 @@ def init_sources(manager: CrawlerManager):
             'name': 'Ukrayinska Pravda',
             'url': 'https://www.pravda.com.ua/news/',
             'parser_class': 'UkrPravdaCrawler'
+        },
+        {
+            'name': 'РБК-Україна',
+            'url': f'https://www.rbc.ua/ukr/archive/{today.replace("-", "/")}',
+            'parser_class': 'RBCUkraineCrawler'
         }
     ]
     
@@ -63,23 +72,32 @@ def main():
     user_agent = os.getenv('USER_AGENT')
     request_delay = float(os.getenv('REQUEST_DELAY', 1.0))
     timeout = int(os.getenv('TIMEOUT', 30))
-    
+    start_date = os.getenv('CRAWL_FROM_DATE')  # Format: YYYY-MM-DD
+    end_date = os.getenv('CRAWL_TO_DATE')      # Format: YYYY-MM-DD
+
     # Setup logging
     setup_logging(log_level=log_level, log_file=log_file)
-    
+
     logger.info("="*60)
     logger.info("News Crawler Starting")
     logger.info("="*60)
-    
+
+    # Log date filtering if configured
+    if start_date or end_date:
+        date_range = f"from {start_date or 'any'} to {end_date or 'any'}"
+        logger.info(f"Date filtering enabled: {date_range}")
+
     # Ensure data directory exists
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Initialize crawler manager
     manager = CrawlerManager(
         db_path=db_path,
         user_agent=user_agent,
         request_delay=request_delay,
-        timeout=timeout
+        timeout=timeout,
+        start_date=start_date,
+        end_date=end_date
     )
     
     # Initialize sources
