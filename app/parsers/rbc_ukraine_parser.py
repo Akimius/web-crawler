@@ -202,6 +202,12 @@ class RBCUkraineCrawler(BaseCrawler):
                 # Last resort: use today's date
                 published_date = datetime.now().strftime('%Y-%m-%d')
 
+        # Normalize date to YYYY-MM-DD format if it contains time
+        if published_date:
+            # If date contains 'T' or space (ISO format or datetime), extract just the date part
+            if 'T' in published_date or ' ' in published_date:
+                published_date = published_date.split('T')[0].split(' ')[0]
+
         # Generate summary
         summary = content[:200] + '...' if len(content) > 200 else content
 
