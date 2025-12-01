@@ -4,7 +4,7 @@ This document provides comprehensive configuration and setup instructions for th
 
 ## Project Overview
 
-A Docker-based Python web crawler that parses news sites and stores articles in a SQLite database. The crawler supports scheduled crawling, multiple news sources, and includes built-in parsers for BBC News, The Guardian, and Ukrayinska Pravda.
+A Docker-based Python web crawler that parses news sites and stores articles in a SQLite database. The crawler runs manually on-demand and supports date-based archive crawling. Currently includes the RBC Ukraine (РБК-Україна) parser with date range support.
 
 ## Prerequisites
 
@@ -22,17 +22,23 @@ A Docker-based Python web crawler that parses news sites and stores articles in 
 # 2. Build Docker image
 docker compose build
 
-# 3. Run first crawl
+# 3. Run first crawl (crawls today's articles by default)
 docker compose run --rm crawler python main.py
 
-# 4. View statistics
+# 4. Crawl specific date
+docker compose run --rm crawler python main.py --start 2024-11-15 --end 2024-11-15
+
+# 5. Crawl date range
+docker compose run --rm crawler python main.py --start 2024-11-01 --end 2024-11-30
+
+# 6. View statistics
 docker compose run --rm crawler python cli.py stats
 ```
 
 Or using Makefile:
 ```bash
 make build
-make crawl
+make crawl              # Crawls today
 make stats
 ```
 
@@ -71,24 +77,15 @@ MAX_RETRIES=3
 - **TIMEOUT**: HTTP request timeout in seconds
 - **MAX_RETRIES**: Maximum retry attempts for failed requests
 
-#### Scheduling Configuration
+#### Date Range Configuration (Optional)
 ```env
-CRAWL_SCHEDULE=0 */6 * * *
+CRAWL_FROM_DATE=
+CRAWL_TO_DATE=
 ```
-- **CRAWL_SCHEDULE**: Cron format schedule (minute hour day month day_of_week)
-- Default: `0 */6 * * *` (every 6 hours)
-- Examples:
-  - `0 */6 * * *` - Every 6 hours
-  - `0 0 * * *` - Daily at midnight
-  - `0 */3 * * *` - Every 3 hours
-  - `*/30 * * * *` - Every 30 minutes
-
-#### News Sources (Optional)
-```env
-NEWS_SOURCES=https://example.com,https://another-news.com
-```
-- Comma-separated list of news URLs
-- Note: Sources are primarily managed in `app/main.py`
+- **CRAWL_FROM_DATE**: Start date for crawling (format: YYYY-MM-DD)
+- **CRAWL_TO_DATE**: End date for crawling (format: YYYY-MM-DD)
+- These can be overridden by CLI arguments `--start` and `--end`
+- Leave empty to use CLI arguments or default to today's date
 
 ## Project Structure
 
@@ -99,15 +96,14 @@ crawler/
 │   ├── parsers/         # Site-specific parsers
 │   ├── scrapers/        # Crawler logic
 │   ├── utils/           # Helper functions
-│   ├── main.py          # Entry point for one-time crawls
-│   ├── scheduler.py     # Scheduled task runner
+│   ├── main.py          # Entry point for manual crawls
 │   └── cli.py           # CLI for querying database
 ├── data/                # SQLite database storage
 │   └── news.db          # Created automatically
 ├── logs/                # Application logs
 │   └── crawler.log      # Created automatically
 ├── .env                 # Configuration (create from .env.example)
-├── docker compose.yml   # Docker orchestration
+├── docker-compose.yml   # Docker orchestration
 ├── Dockerfile           # Container definition
 ├── requirements.txt     # Python dependencies
 ├── Makefile             # Convenience commands
@@ -117,6 +113,8 @@ crawler/
 ## Common Operations
 
 ### One-Time Crawl
+
+#### Crawl Today's Articles (Default)
 ```bash
 # Using Docker Compose
 docker compose run --rm crawler python main.py
@@ -125,16 +123,27 @@ docker compose run --rm crawler python main.py
 make crawl
 ```
 
-### Scheduled Crawling (Background)
+#### Crawl Specific Date
 ```bash
-# Start scheduler
-docker compose up -d
+# Crawl articles from November 15, 2024
+docker compose run --rm crawler python main.py --start 2024-11-15 --end 2024-11-15
 
-# View logs
-docker compose logs -f crawler
+# Short form (same start and end date)
+docker compose run --rm crawler python main.py --start 2024-11-15
+```
 
-# Stop scheduler
-docker compose down
+#### Crawl Date Range
+```bash
+# Crawl all articles from November 1-30, 2024
+docker compose run --rm crawler python main.py --start 2024-11-01 --end 2024-11-30
+
+# Crawl from specific date to today
+docker compose run --rm crawler python main.py --start 2024-11-01
+```
+
+#### View Available Options
+```bash
+docker compose run --rm crawler python main.py --help
 ```
 
 ### Database Queries
@@ -182,10 +191,7 @@ SELECT title, url FROM articles WHERE content LIKE '%keyword%';
 ```bash
 make help       # Show all available commands
 make build      # Build Docker image
-make crawl      # Run one-time crawl
-make start      # Start scheduled crawler (background)
-make stop       # Stop crawler
-make logs       # View crawler logs
+make crawl      # Run manual crawl (today's articles)
 make stats      # Show database statistics
 make sources    # List all news sources
 make articles   # Show recent articles (LIMIT=10)
@@ -197,22 +203,54 @@ make clean      # Remove containers and volumes
 ## Adding News Sources
 
 ### Available Parsers
+
+Currently active:
+- `RBCUkraineCrawler` - RBC Ukraine (РБК-Україна) with date-based archive support
+
+Commented out (available but not active):
 - `BBCNewsCrawler` - BBC News
 - `GuardianNewsCrawler` - The Guardian
 - `UkrPravdaCrawler` - Ukrayinska Pravda
 
-### Method 1: Add to Existing Sources
+### Method 1: Modify RBC Ukraine Source Date
 
-Edit `app/main.py` and add to `init_sources()`:
+The RBC Ukraine parser is already configured in `app/main.py`. You can customize the date range using CLI options:
+
+```bash
+# Crawl specific date
+docker compose run --rm crawler python main.py --start 2024-11-15
+
+# Crawl date range
+docker compose run --rm crawler python main.py --start 2024-11-01 --end 2024-11-30
+```
+
+### Method 2: Reactivate Other Parsers
+
+To enable BBC, Guardian, or UkrPravda parsers:
+
+1. Uncomment the import in `app/utils/crawler_manager.py`:
 ```python
-{
-    'name': 'Your News Site',
-    'url': 'https://example.com/news',
-    'parser_class': 'BBCNewsCrawler'  # Reuse existing parser
+from parsers.bbc_parser import BBCNewsCrawler
+```
+
+2. Uncomment in the PARSERS dictionary:
+```python
+PARSERS: Dict[str, Type[BaseCrawler]] = {
+    'RBCUkraineCrawler': RBCUkraineCrawler,
+    'BBCNewsCrawler': BBCNewsCrawler,  # Uncomment this
 }
 ```
 
-### Method 2: Create Custom Parser
+3. Add the source in `app/main.py` in `init_sources()`:
+```python
+{
+    'name': 'BBC News',
+    'url': 'https://www.bbc.com/news',
+    'parser_class': 'BBCNewsCrawler'
+}
+```
+
+### Method 3: Create Custom Parser
 
 1. Create `app/parsers/your_parser.py`:
 ```python
@@ -358,7 +396,6 @@ Key Python packages (see `requirements.txt`):
 - `requests` - HTTP client
 - `scrapy` - Web crawling framework
 - `newspaper3k` - Article extraction
-- `APScheduler` - Task scheduling
 - `python-dotenv` - Environment variable management
 
 ## Performance Tuning
@@ -373,10 +410,10 @@ Key Python packages (see `requirements.txt`):
 - Database grows ~1MB per 100 articles
 - Logs rotate automatically (configure in code)
 
-### Scheduling Optimization
-- Avoid peak traffic hours
-- Distribute sources across multiple schedules
-- Consider time zones for international sources
+### Date Range Optimization
+- For large date ranges, consider breaking into smaller batches
+- Monitor disk space when crawling many days
+- Use specific dates to avoid unnecessary crawling
 
 ## Security Considerations
 
@@ -394,13 +431,12 @@ Key Python packages (see `requirements.txt`):
 | Logs | `logs/crawler.log` | Application logs |
 | Config | `.env` | Environment configuration |
 | Source Code | `app/` | Python application |
-| Entry Point | `app/main.py` | One-time crawl |
-| Scheduler | `app/scheduler.py` | Scheduled crawls |
+| Entry Point | `app/main.py` | Manual crawl entry point |
 | CLI | `app/cli.py` | Database queries |
 
 ## Next Steps
 
-1. Customize crawl schedule in `.env`
+1. Set up cron jobs or external schedulers if automated crawling is needed
 2. Add additional news sources
 3. Build a web frontend for the database
 4. Export data as JSON/CSV

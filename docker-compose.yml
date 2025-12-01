@@ -11,9 +11,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - TZ=Europe/Kiev
-    restart: unless-stopped
-    # Uncomment for scheduled crawling
-    # command: python scheduler.py
+    # No auto-restart - crawler is run manually only
+    # Use: docker compose run --rm crawler python main.py
     
   # Optional: Add a web UI to monitor crawler
   # web:
