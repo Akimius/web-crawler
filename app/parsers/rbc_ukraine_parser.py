@@ -101,23 +101,29 @@ class RBCUkraineCrawler(BaseCrawler):
             soup = self.parse_html(html)
 
             # RBC Ukraine archive page structure
-            # Articles are typically in elements with specific classes
-            article_links = soup.select('a.item__title')
+            # Articles are in <div class="newsline"> > <div> > <a> elements
+            article_links = soup.select('div.newsline div a')
 
-            # Fallback selectors if the main one doesn't work
             if not article_links:
+                # Fallback: try without newsline class
+                article_links = soup.select('div.newsline a')
+
+            if not article_links:
+                # Try older selectors as fallback
+                article_links = soup.select('a.item__title')
+
+            if not article_links:
+                # Generic fallback
                 article_links = soup.select('div.item a')
-
-            if not article_links:
-                # Try generic article links
-                article_links = soup.select('article a, .article a, .news-item a')
 
             for link in article_links:
                 href = link.get('href')
                 if href:
-                    # RBC uses relative URLs, convert to absolute
+                    # RBC uses absolute URLs in archive pages
+                    # But ensure we convert relative URLs if any exist
                     absolute_url = self.absolute_url(href)
-                    if self.is_valid_url(absolute_url) and 'rbc.ua' in absolute_url:
+                    # Only include actual news article URLs (contain /news/ or /ukr/)
+                    if self.is_valid_url(absolute_url) and 'rbc.ua' in absolute_url and '/news/' in absolute_url:
                         all_article_urls.append(absolute_url)
 
         # Remove duplicates while preserving order
