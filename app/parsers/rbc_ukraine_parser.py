@@ -11,25 +11,43 @@ class RBCUkraineCrawler(BaseCrawler):
 
     Archive URL format: https://www.rbc.ua/ukr/archive/YYYY/MM/DD
     This crawler can fetch articles from specific dates or date ranges.
+
+    Supports crawling:
+    - Single date (when start_date and end_date are the same)
+    - Date ranges (when start_date and end_date differ)
+    - Defaults to today if no dates provided
     """
 
-    def __init__(self, archive_date: str = None, **kwargs):
+    def __init__(self, **kwargs):
         """
         Initialize RBC Ukraine crawler
 
         Args:
-            archive_date: Optional date in YYYY-MM-DD format.
-                         If not provided, uses today's date.
+            start_date: Start date in YYYY-MM-DD format (passed via kwargs)
+            end_date: End date in YYYY-MM-DD format (passed via kwargs)
             **kwargs: Additional arguments passed to BaseCrawler
         """
-        # Use provided date or today's date
-        if archive_date:
-            self.archive_date = archive_date
-        else:
-            self.archive_date = datetime.now().strftime('%Y-%m-%d')
+        # Get start_date and end_date from kwargs if provided
+        start_date = kwargs.get('start_date')
+        end_date = kwargs.get('end_date')
 
-        # Convert YYYY-MM-DD to YYYY/MM/DD for URL
-        date_parts = self.archive_date.split('-')
+        # If no dates provided, use today
+        if not start_date and not end_date:
+            today = datetime.now().strftime('%Y-%m-%d')
+            start_date = today
+            end_date = today
+            logger.info(f"No dates provided, defaulting to today: {today}")
+        elif start_date and not end_date:
+            # If only start_date provided, use it as both start and end
+            end_date = start_date
+            logger.info(f"Only start date provided, using single date: {start_date}")
+        elif end_date and not start_date:
+            # If only end_date provided, use it as both start and end
+            start_date = end_date
+            logger.info(f"Only end date provided, using single date: {end_date}")
+
+        # Set the initial archive URL (will be overridden if date range)
+        date_parts = start_date.split('-')
         archive_url = f"https://www.rbc.ua/ukr/archive/{date_parts[0]}/{date_parts[1]}/{date_parts[2]}"
 
         super().__init__(
@@ -37,7 +55,11 @@ class RBCUkraineCrawler(BaseCrawler):
             **kwargs
         )
 
-        logger.info(f"RBC Ukraine crawler initialized for date: {self.archive_date}")
+        # Log the date range being crawled
+        if start_date == end_date:
+            logger.info(f"RBC Ukraine crawler initialized for date: {start_date}")
+        else:
+            logger.info(f"RBC Ukraine crawler initialized for date range: {start_date} to {end_date}")
 
     def _generate_archive_urls(self) -> List[str]:
         """Generate archive URLs based on date range if configured"""
@@ -163,9 +185,16 @@ class RBCUkraineCrawler(BaseCrawler):
             if meta_date:
                 published_date = meta_date.get('content')
 
-        # If still no date, use the archive date from the URL
-        if not published_date and self.archive_date:
-            published_date = self.archive_date
+        # If still no date, try to extract from URL or use today's date as fallback
+        if not published_date:
+            # Try to extract date from URL pattern: /YYYY/MM/DD/
+            import re
+            date_match = re.search(r'/(\d{4})/(\d{2})/(\d{2})/', url)
+            if date_match:
+                published_date = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
+            else:
+                # Last resort: use today's date
+                published_date = datetime.now().strftime('%Y-%m-%d')
 
         # Generate summary
         summary = content[:200] + '...' if len(content) > 200 else content

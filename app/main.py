@@ -8,6 +8,7 @@ This script initializes the database, sets up sources, and runs the crawler.
 import os
 import sys
 import logging
+import argparse
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -30,21 +31,21 @@ def init_sources(manager: CrawlerManager):
     today = datetime.now().strftime('%Y-%m-%d')
 
     sources = [
-        {
-            'name': 'BBC News',
-            'url': 'https://www.bbc.com/news',
-            'parser_class': 'BBCNewsCrawler'
-        },
-        {
-            'name': 'The Guardian',
-            'url': 'https://www.theguardian.com/international',
-            'parser_class': 'GuardianNewsCrawler'
-        },
-        {
-            'name': 'Ukrayinska Pravda',
-            'url': 'https://www.pravda.com.ua/news/',
-            'parser_class': 'UkrPravdaCrawler'
-        },
+        # {
+        #     'name': 'BBC News',
+        #     'url': 'https://www.bbc.com/news',
+        #     'parser_class': 'BBCNewsCrawler'
+        # },
+        # {
+        #     'name': 'The Guardian',
+        #     'url': 'https://www.theguardian.com/international',
+        #     'parser_class': 'GuardianNewsCrawler'
+        # },
+        # {
+        #     'name': 'Ukrayinska Pravda',
+        #     'url': 'https://www.pravda.com.ua/news/',
+        #     'parser_class': 'UkrPravdaCrawler'
+        # },
         {
             'name': 'РБК-Україна',
             'url': f'https://www.rbc.ua/ukr/archive/{today.replace("-", "/")}',
@@ -65,6 +66,40 @@ def init_sources(manager: CrawlerManager):
 
 def main():
     """Main execution function"""
+    # Setup argument parser
+    parser = argparse.ArgumentParser(
+        description='News Crawler - Scrape news articles from configured sources',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  # Crawl today's articles (default)
+  python main.py
+
+  # Crawl specific date
+  python main.py --start 2024-11-15 --end 2024-11-15
+
+  # Crawl date range
+  python main.py --start 2024-11-01 --end 2024-11-30
+
+  # Crawl from date to today
+  python main.py --start 2024-11-01
+        '''
+    )
+
+    parser.add_argument(
+        '--start',
+        type=str,
+        help='Start date for crawling (format: YYYY-MM-DD). Defaults to today.'
+    )
+
+    parser.add_argument(
+        '--end',
+        type=str,
+        help='End date for crawling (format: YYYY-MM-DD). Defaults to today.'
+    )
+
+    args = parser.parse_args()
+
     # Get configuration from environment
     db_path = os.getenv('DB_PATH', 'data/news.db')
     log_level = os.getenv('LOG_LEVEL', 'INFO')
@@ -72,8 +107,10 @@ def main():
     user_agent = os.getenv('USER_AGENT')
     request_delay = float(os.getenv('REQUEST_DELAY', 1.0))
     timeout = int(os.getenv('TIMEOUT', 30))
-    start_date = os.getenv('CRAWL_FROM_DATE')  # Format: YYYY-MM-DD
-    end_date = os.getenv('CRAWL_TO_DATE')      # Format: YYYY-MM-DD
+
+    # CLI arguments override environment variables
+    start_date = args.start or os.getenv('CRAWL_FROM_DATE')  # Format: YYYY-MM-DD
+    end_date = args.end or os.getenv('CRAWL_TO_DATE')        # Format: YYYY-MM-DD
 
     # Setup logging
     setup_logging(log_level=log_level, log_file=log_file)

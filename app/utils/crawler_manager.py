@@ -3,9 +3,10 @@ import os
 from typing import List, Dict, Any, Type
 from models.database import Database, Source, Article
 from scrapers.base_crawler import BaseCrawler
-from parsers.bbc_parser import BBCNewsCrawler
-from parsers.guardian_parser import GuardianNewsCrawler
-from parsers.ukrpravda_parser import UkrPravdaCrawler
+# Commented out other parsers - only using RBC Ukraine for now
+# from parsers.bbc_parser import BBCNewsCrawler
+# from parsers.guardian_parser import GuardianNewsCrawler
+# from parsers.ukrpravda_parser import UkrPravdaCrawler
 from parsers.rbc_ukraine_parser import RBCUkraineCrawler
 
 logger = logging.getLogger(__name__)
@@ -15,11 +16,12 @@ class CrawlerManager:
     """Manages all crawlers and coordinates scraping"""
 
     # Registry of available parsers
+    # Only RBC Ukraine parser is active - others commented out
     PARSERS: Dict[str, Type[BaseCrawler]] = {
-        'BBCNewsCrawler': BBCNewsCrawler,
-        'GuardianNewsCrawler': GuardianNewsCrawler,
-        'UkrPravdaCrawler': UkrPravdaCrawler,
         'RBCUkraineCrawler': RBCUkraineCrawler,
+        # 'BBCNewsCrawler': BBCNewsCrawler,
+        # 'GuardianNewsCrawler': GuardianNewsCrawler,
+        # 'UkrPravdaCrawler': UkrPravdaCrawler,
     }
     
     def __init__(self, db_path: str, user_agent: str = None,
