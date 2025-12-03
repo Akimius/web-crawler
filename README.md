@@ -1,4 +1,4 @@
-bb# News Crawler
+# News Crawler
 
 A Docker-based Python web crawler for parsing news sites and storing articles in SQLite database.
 
