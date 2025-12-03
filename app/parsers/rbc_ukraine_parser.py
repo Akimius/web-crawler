@@ -164,11 +164,6 @@ class RBCUkraineCrawler(BaseCrawler):
             else:
                 content = ''
 
-        # Extract author
-        author = self.extract_text(soup, 'div.article__author')
-        if not author:
-            author = self.extract_text(soup, 'span.author, div.author, a.author')
-
         # Extract published date
         published_date = None
 
@@ -208,13 +203,8 @@ class RBCUkraineCrawler(BaseCrawler):
             if 'T' in published_date or ' ' in published_date:
                 published_date = published_date.split('T')[0].split(' ')[0]
 
-        # Generate summary
-        summary = content[:200] + '...' if len(content) > 200 else content
-
         return {
             'title': title,
             'content': content,
-            'author': author if author else 'РБК-Україна',
-            'published_date': published_date,
-            'summary': summary
+            'published_date': published_date
         }

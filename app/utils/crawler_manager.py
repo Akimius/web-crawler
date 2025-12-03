@@ -104,8 +104,6 @@ class CrawlerManager:
                     url=article_data['url'],
                     title=article_data['title'],
                     content=article_data.get('content'),
-                    summary=article_data.get('summary'),
-                    author=article_data.get('author'),
                     published_date=article_data.get('published_date')
                 )
                 

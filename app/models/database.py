@@ -33,7 +33,7 @@ class Database:
         """Initialize database schema"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
+
             # Create sources table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS sources (
@@ -47,7 +47,7 @@ class Database:
                     updated_at TEXT NOT NULL
                 )
             ''')
-            
+
             # Create articles table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS articles (
@@ -56,8 +56,6 @@ class Database:
                     url TEXT UNIQUE NOT NULL,
                     title TEXT NOT NULL,
                     content TEXT,
-                    summary TEXT,
-                    author TEXT,
                     published_date TEXT,
                     scraped_date TEXT NOT NULL,
                     created_at TEXT NOT NULL,
@@ -65,28 +63,28 @@ class Database:
                     FOREIGN KEY (source_id) REFERENCES sources (id) ON DELETE CASCADE
                 )
             ''')
-            
+
             # Create indexes
             cursor.execute('''
-                CREATE INDEX IF NOT EXISTS idx_articles_source_id 
+                CREATE INDEX IF NOT EXISTS idx_articles_source_id
                 ON articles(source_id)
             ''')
-            
+
             cursor.execute('''
-                CREATE INDEX IF NOT EXISTS idx_articles_published_date 
+                CREATE INDEX IF NOT EXISTS idx_articles_published_date
                 ON articles(published_date)
             ''')
-            
+
             cursor.execute('''
-                CREATE INDEX IF NOT EXISTS idx_articles_scraped_date 
+                CREATE INDEX IF NOT EXISTS idx_articles_scraped_date
                 ON articles(scraped_date)
             ''')
-            
+
             cursor.execute('''
-                CREATE INDEX IF NOT EXISTS idx_sources_is_active 
+                CREATE INDEX IF NOT EXISTS idx_sources_is_active
                 ON sources(is_active)
             ''')
-            
+
             logger.info("Database initialized successfully")
 
 
@@ -169,26 +167,26 @@ class Article:
     def __init__(self, db: Database):
         self.db = db
     
-    def create(self, source_id: int, url: str, title: str, 
-               content: Optional[str] = None, summary: Optional[str] = None,
-               author: Optional[str] = None, published_date: Optional[str] = None) -> Optional[int]:
+    def create(self, source_id: int, url: str, title: str,
+               content: Optional[str] = None,
+               published_date: Optional[str] = None) -> Optional[int]:
         """Create a new article"""
         now = datetime.utcnow().isoformat()
-        
+
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
-            
+
             try:
                 cursor.execute('''
-                    INSERT INTO articles 
-                    (source_id, url, title, content, summary, author, published_date, scraped_date, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (source_id, url, title, content, summary, author, published_date, now, now, now))
-                
+                    INSERT INTO articles
+                    (source_id, url, title, content, published_date, scraped_date, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (source_id, url, title, content, published_date, now, now, now))
+
                 article_id = cursor.lastrowid
                 logger.info(f"Created article: {title[:50]}... (ID: {article_id})")
                 return article_id
-                
+
             except sqlite3.IntegrityError:
                 logger.warning(f"Article already exists: {url}")
                 return None
