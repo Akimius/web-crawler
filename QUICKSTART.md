@@ -14,12 +14,12 @@ docker-compose build
 
 ### 3. Run First Crawl
 ```bash
-docker-compose run --rm crawler python main.py
+docker compose run --rm crawler python main.py
 ```
 
 This will:
 - Create SQLite database in `data/news.db`
-- Initialize 3 news sources (BBC, Guardian, Ukrayinska Pravda)
+- Initialize 3 news sources ( Ukrayinska Pravda)
 - Crawl and save articles
 - Show statistics
 

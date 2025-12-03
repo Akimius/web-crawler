@@ -64,7 +64,6 @@ def list_articles(db: Database, limit: int = 20, source_id: int = None):
         print(f"{idx}. [{source_name}] {article['title']}")
         print(f"   Published: {published}")
         print(f"   URL: {article['url']}")
-        print(f"   Summary: {article['summary'][:100]}...")
         print()
 
 
