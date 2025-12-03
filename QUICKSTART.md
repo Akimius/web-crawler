@@ -15,7 +15,9 @@ docker-compose build
 ### 3. Run First Crawl
 ```bash
 docker compose run --rm crawler python main.py --start="2025-12-03" --end="2025-12-03"
+python3 app/main.py --start="2025-12-03" --end="2025-12-03"
 ```
+local setup
 
 This will:
 - Create SQLite database in `data/news.db`
