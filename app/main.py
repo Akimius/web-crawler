@@ -23,7 +23,6 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-
 def init_sources(manager: CrawlerManager):
     """Initialize default news sources"""
     # Get today's date for RBC Ukraine archive
@@ -76,24 +75,26 @@ Examples:
   python main.py
 
   # Crawl specific date
-  python main.py --start 2024-11-15 --end 2024-11-15
+  python main.py --from 2024-11-15 --to 2024-11-15
 
   # Crawl date range
-  python main.py --start 2024-11-01 --end 2024-11-30
+  python main.py --from 2024-11-01 --to 2024-11-30
 
   # Crawl from date to today
-  python main.py --start 2024-11-01
+  python main.py --from 2024-11-01
         '''
     )
 
     parser.add_argument(
-        '--start',
+        '--from',
+        dest='start_date',
         type=str,
         help='Start date for crawling (format: YYYY-MM-DD). Defaults to today.'
     )
 
     parser.add_argument(
-        '--end',
+        '--to',
+        dest='end_date',
         type=str,
         help='End date for crawling (format: YYYY-MM-DD). Defaults to today.'
     )
@@ -109,8 +110,8 @@ Examples:
     timeout = int(os.getenv('TIMEOUT', 30))
 
     # CLI arguments override environment variables
-    start_date = args.start or os.getenv('CRAWL_FROM_DATE')  # Format: YYYY-MM-DD
-    end_date = args.end or os.getenv('CRAWL_TO_DATE')        # Format: YYYY-MM-DD
+    start_date = args.start_date  # Format: YYYY-MM-DD
+    end_date = args.end_date      # Format: YYYY-MM-DD
 
     # Setup logging
     setup_logging(log_level=log_level, log_file=log_file)

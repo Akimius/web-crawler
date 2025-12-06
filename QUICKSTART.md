@@ -14,8 +14,8 @@ docker compose build
 
 ### 3. Run First Crawl
 ```bash
-docker compose run --rm crawler python main.py --start="2025-12-03" --end="2025-12-03"
-python3 app/main.py --start="2025-12-03" --end="2025-12-03"
+docker compose run --rm crawler python main.py --from="2025-12-03" --to="2025-12-03"
+python3 app/main.py --from="2025-12-03" --to="2025-12-03"
 ```
 local setup
 
@@ -84,8 +84,12 @@ docker compose run --rm crawler python cli.py sources
 docker compose run --rm crawler python cli.py articles
 
 # Search
-docker compose run --rm crawler python cli.py search "keyword"
+docker compose run --rm crawler python cli.py search --keyword "term"
+docker compose run --rm crawler python cli.py search -k "term"
 
+# With other options
+docker compose run --rm crawler python cli.py search -k "term" --from 2024-01-01 --to 2024-12-31
+  
 # Stats
 docker compose run --rm crawler python cli.py stats
 

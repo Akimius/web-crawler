@@ -26,10 +26,10 @@ docker compose build
 docker compose run --rm crawler python main.py
 
 # 4. Crawl specific date
-docker compose run --rm crawler python main.py --start 2024-11-15 --end 2024-11-15
+docker compose run --rm crawler python main.py --from 2024-11-15 --to 2024-11-15
 
 # 5. Crawl date range
-docker compose run --rm crawler python main.py --start 2024-11-01 --end 2024-11-30
+docker compose run --rm crawler python main.py --from 2024-11-01 --to 2024-11-30
 
 # 6. View statistics
 docker compose run --rm crawler python cli.py stats
@@ -84,7 +84,7 @@ CRAWL_TO_DATE=
 ```
 - **CRAWL_FROM_DATE**: Start date for crawling (format: YYYY-MM-DD)
 - **CRAWL_TO_DATE**: End date for crawling (format: YYYY-MM-DD)
-- These can be overridden by CLI arguments `--start` and `--end`
+- These can be overridden by CLI arguments `--from` and `--to`
 - Leave empty to use CLI arguments or default to today's date
 
 ## Project Structure
@@ -126,19 +126,19 @@ make crawl
 #### Crawl Specific Date
 ```bash
 # Crawl articles from November 15, 2024
-docker compose run --rm crawler python main.py --start 2024-11-15 --end 2024-11-15
+docker compose run --rm crawler python main.py --from 2024-11-15 --to 2024-11-15
 
 # Short form (same start and end date)
-docker compose run --rm crawler python main.py --start 2024-11-15
+docker compose run --rm crawler python main.py --from 2024-11-15
 ```
 
 #### Crawl Date Range
 ```bash
 # Crawl all articles from November 1-30, 2024
-docker compose run --rm crawler python main.py --start 2024-11-01 --end 2024-11-30
+docker compose run --rm crawler python main.py --from 2024-11-01 --to 2024-11-30
 
 # Crawl from specific date to today
-docker compose run --rm crawler python main.py --start 2024-11-01
+docker compose run --rm crawler python main.py --from 2024-11-01
 ```
 
 #### View Available Options
@@ -218,10 +218,10 @@ The RBC Ukraine parser is already configured in `app/main.py`. You can customize
 
 ```bash
 # Crawl specific date
-docker compose run --rm crawler python main.py --start 2024-11-15
+docker compose run --rm crawler python main.py --from 2024-11-15
 
 # Crawl date range
-docker compose run --rm crawler python main.py --start 2024-11-01 --end 2024-11-30
+docker compose run --rm crawler python main.py --from 2024-11-01 --to 2024-11-30
 ```
 
 ### Method 2: Reactivate Other Parsers

@@ -169,7 +169,10 @@ def setup_parser() -> argparse.ArgumentParser:
 
     # Search command
     search_parser = subparsers.add_parser('search', help='Search articles')
-    search_parser.add_argument('keyword', help='Keyword to search for')
+    search_parser.add_argument(
+        '--keyword', '-k', required=True,
+        help='Keyword to search for'
+    )
     search_parser.add_argument(
         '--limit', type=int, default=DEFAULT_LIMIT,
         help='Number of results'
