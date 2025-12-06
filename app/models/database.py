@@ -249,10 +249,68 @@ class Article:
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT a.*, s.name as source_name 
+                SELECT a.*, s.name as source_name
                 FROM articles a
                 JOIN sources s ON a.source_id = s.id
-                ORDER BY a.published_date DESC 
+                ORDER BY a.published_date DESC
                 LIMIT ?
             ''', (limit,))
             return [dict(row) for row in cursor.fetchall()]
+
+    def search(self, keyword: str, limit: int = 20,
+               start_date: Optional[str] = None,
+               end_date: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Search articles by keyword with optional date range"""
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+
+            query = '''
+                SELECT a.*, s.name as source_name
+                FROM articles a
+                JOIN sources s ON a.source_id = s.id
+                WHERE (a.title LIKE ? OR a.content LIKE ?)
+            '''
+            params: List[Any] = [f'%{keyword}%', f'%{keyword}%']
+
+            if start_date and end_date:
+                query += ' AND a.published_date BETWEEN ? AND ?'
+                params.extend([start_date, end_date])
+            elif start_date:
+                query += ' AND a.published_date >= ?'
+                params.append(start_date)
+            elif end_date:
+                query += ' AND a.published_date <= ?'
+                params.append(end_date)
+
+            query += ' ORDER BY a.published_date DESC LIMIT ?'
+            params.append(limit)
+
+            cursor.execute(query, params)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def count_total(self) -> int:
+        """Count total articles"""
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) as count FROM articles')
+            return cursor.fetchone()['count']
+
+    def count_scraped_on_date(self, date: str) -> int:
+        """Count articles scraped on a specific date"""
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT COUNT(*) as count FROM articles WHERE DATE(scraped_date) = ?',
+                (date,)
+            )
+            return cursor.fetchone()['count']
+
+    def count_scraped_since(self, date: str) -> int:
+        """Count articles scraped since a specific date"""
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT COUNT(*) as count FROM articles WHERE DATE(scraped_date) >= ?',
+                (date,)
+            )
+            return cursor.fetchone()['count']

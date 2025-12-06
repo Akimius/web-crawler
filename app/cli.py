@@ -10,6 +10,8 @@ import sys
 import argparse
 from pathlib import Path
 from datetime import datetime, timedelta
+from typing import Dict, Any, Callable, Optional
+
 from dotenv import load_dotenv
 
 # Add app directory to path
@@ -20,140 +22,113 @@ from models.database import Database, Article, Source
 # Load environment variables
 load_dotenv()
 
+# Constants
+DEFAULT_LIMIT = 20
+SEPARATOR_WIDTH = 60
 
-def list_sources(db: Database):
-    """List all news sources"""
+
+def _print_article(idx: int, article: Dict[str, Any]) -> None:
+    """Print a single article in a formatted way."""
+    source_name = article.get('source_name', 'Unknown')
+    published = article['published_date'] or 'Unknown date'
+    print(f"{idx}. [{source_name}] {article['title']}")
+    print(f"   Published: {published}")
+    print(f"   URL: {article['url']}")
+    print()
+
+
+def _print_articles(articles: list[Dict[str, Any]], header: str) -> None:
+    """Print a list of articles with a header."""
+    if not articles:
+        print("No articles found.")
+        return
+
+    print(f"\n{header}\n")
+    for idx, article in enumerate(articles, 1):
+        _print_article(idx, article)
+
+
+def _format_date_range(start_date: Optional[str], end_date: Optional[str]) -> str:
+    """Format date range for display."""
+    if not start_date and not end_date:
+        return ""
+    return f" (from {start_date or 'any'} to {end_date or 'any'})"
+
+
+def cmd_sources(db: Database, args: argparse.Namespace) -> None:
+    """List all news sources."""
     source_model = Source(db)
     sources = source_model.get_all_active()
-    
+
     if not sources:
         print("No sources found.")
         return
-    
+
     print(f"\n{'ID':<5} {'Name':<30} {'Articles':<10} {'Last Crawled':<20}")
-    print("="*70)
-    
+    print("=" * 70)
+
     article_model = Article(db)
     for source in sources:
         count = article_model.count_by_source(source['id'])
         last_crawled = source['last_crawled'] or 'Never'
         print(f"{source['id']:<5} {source['name']:<30} {count:<10} {last_crawled:<20}")
-    
+
     print()
 
 
-def list_articles(db: Database, limit: int = 20, source_id: int = None):
-    """List recent articles"""
+def cmd_articles(db: Database, args: argparse.Namespace) -> None:
+    """List recent articles."""
     article_model = Article(db)
-    
-    if source_id:
-        articles = article_model.get_by_source(source_id, limit=limit)
+
+    if args.source:
+        articles = article_model.get_by_source(args.source, limit=args.limit)
     else:
-        articles = article_model.get_latest(limit=limit)
-    
-    if not articles:
-        print("No articles found.")
-        return
-    
-    print(f"\nShowing {len(articles)} most recent articles:\n")
-    
-    for idx, article in enumerate(articles, 1):
-        source_name = article.get('source_name', 'Unknown')
-        published = article['published_date'] or 'Unknown date'
-        
-        print(f"{idx}. [{source_name}] {article['title']}")
-        print(f"   Published: {published}")
-        print(f"   URL: {article['url']}")
-        print()
+        articles = article_model.get_latest(limit=args.limit)
+
+    _print_articles(articles, f"Showing {len(articles)} most recent articles:")
 
 
-def search_articles(db: Database, keyword: str, limit: int = 20, start_date: str = None, end_date: str = None):
-    """Search articles by keyword with optional date range"""
-    with db.get_connection() as conn:
-        cursor = conn.cursor()
+def cmd_search(db: Database, args: argparse.Namespace) -> None:
+    """Search articles by keyword with optional date range."""
+    article_model = Article(db)
+    articles = article_model.search(
+        args.keyword,
+        limit=args.limit,
+        start_date=args.start_date,
+        end_date=args.end_date
+    )
 
-        # Build query based on date filters
-        query = '''
-            SELECT a.*, s.name as source_name
-            FROM articles a
-            JOIN sources s ON a.source_id = s.id
-            WHERE (a.title LIKE ? OR a.content LIKE ?)
-        '''
-        params = [f'%{keyword}%', f'%{keyword}%']
-
-        # Add date range filters if provided
-        if start_date and end_date:
-            query += ' AND a.published_date BETWEEN ? AND ?'
-            params.extend([start_date, end_date])
-        elif start_date:
-            query += ' AND a.published_date >= ?'
-            params.append(start_date)
-        elif end_date:
-            query += ' AND a.published_date <= ?'
-            params.append(end_date)
-
-        query += ' ORDER BY a.published_date DESC LIMIT ?'
-        params.append(limit)
-
-        cursor.execute(query, params)
-        articles = [dict(row) for row in cursor.fetchall()]
+    date_range = _format_date_range(args.start_date, args.end_date)
 
     if not articles:
-        date_info = ""
-        if start_date or end_date:
-            date_info = f" in date range {start_date or 'any'} to {end_date or 'any'}"
-        print(f"No articles found matching '{keyword}'{date_info}.")
+        print(f"No articles found matching '{args.keyword}'{date_range}.")
         return
 
-    date_range = ""
-    if start_date or end_date:
-        date_range = f" (from {start_date or 'any'} to {end_date or 'any'})"
-
-    print(f"\nFound {len(articles)} articles matching '{keyword}'{date_range}:\n")
-
-    for idx, article in enumerate(articles, 1):
-        source_name = article.get('source_name', 'Unknown')
-        published = article['published_date'] or 'Unknown date'
-
-        print(f"{idx}. [{source_name}] {article['title']}")
-        print(f"   Published: {published}")
-        print(f"   URL: {article['url']}")
-        print()
+    _print_articles(articles, f"Found {len(articles)} articles matching '{args.keyword}'{date_range}:")
 
 
-def show_stats(db: Database):
-    """Show database statistics"""
+def cmd_stats(db: Database, args: argparse.Namespace) -> None:
+    """Show database statistics."""
     article_model = Article(db)
     source_model = Source(db)
-    
+
     sources = source_model.get_all_active()
-    
-    with db.get_connection() as conn:
-        cursor = conn.cursor()
-        
-        # Total articles
-        cursor.execute('SELECT COUNT(*) as count FROM articles')
-        total_articles = cursor.fetchone()['count']
-        
-        # Articles today
-        today = datetime.now().date().isoformat()
-        cursor.execute('SELECT COUNT(*) as count FROM articles WHERE DATE(scraped_date) = ?', (today,))
-        articles_today = cursor.fetchone()['count']
-        
-        # Articles this week
-        week_ago = (datetime.now() - timedelta(days=7)).date().isoformat()
-        cursor.execute('SELECT COUNT(*) as count FROM articles WHERE DATE(scraped_date) >= ?', (week_ago,))
-        articles_week = cursor.fetchone()['count']
-    
-    print("\n" + "="*60)
+    today = datetime.now().date().isoformat()
+    week_ago = (datetime.now() - timedelta(days=7)).date().isoformat()
+
+    total_articles = article_model.count_total()
+    articles_today = article_model.count_scraped_on_date(today)
+    articles_week = article_model.count_scraped_since(week_ago)
+
+    print("\n" + "=" * SEPARATOR_WIDTH)
     print("Database Statistics")
-    print("="*60)
+    print("=" * SEPARATOR_WIDTH)
     print(f"Total sources: {len(sources)}")
     print(f"Total articles: {total_articles}")
     print(f"Articles scraped today: {articles_today}")
     print(f"Articles scraped this week: {articles_week}")
-    print("="*60)
-    
+    print("=" * SEPARATOR_WIDTH)
+
     print("\nArticles by source:")
     for source in sources:
         count = article_model.count_by_source(source['id'])
@@ -161,53 +136,85 @@ def show_stats(db: Database):
     print()
 
 
-def main():
-    """Main CLI function"""
+# Command registry
+COMMANDS: Dict[str, Callable[[Database, argparse.Namespace], None]] = {
+    'sources': cmd_sources,
+    'articles': cmd_articles,
+    'search': cmd_search,
+    'stats': cmd_stats,
+}
+
+
+def setup_parser() -> argparse.ArgumentParser:
+    """Set up argument parser with all subcommands."""
     parser = argparse.ArgumentParser(description='News Crawler Database CLI')
-    parser.add_argument('--db', default=os.getenv('DB_PATH', 'data/news.db'),
-                       help='Database path')
-    
+    parser.add_argument(
+        '--db',
+        default=os.getenv('DB_PATH', 'data/news.db'),
+        help='Database path'
+    )
+
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
-    
+
     # Sources command
     subparsers.add_parser('sources', help='List all news sources')
-    
+
     # Articles command
     articles_parser = subparsers.add_parser('articles', help='List recent articles')
-    articles_parser.add_argument('--limit', type=int, default=20, help='Number of articles to show')
+    articles_parser.add_argument(
+        '--limit', type=int, default=DEFAULT_LIMIT,
+        help='Number of articles to show'
+    )
     articles_parser.add_argument('--source', type=int, help='Filter by source ID')
-    
+
     # Search command
     search_parser = subparsers.add_parser('search', help='Search articles')
     search_parser.add_argument('keyword', help='Keyword to search for')
-    search_parser.add_argument('--limit', type=int, default=20, help='Number of results')
-    search_parser.add_argument('--from', dest='start_date', help='Start date (YYYY-MM-DD format)')
-    search_parser.add_argument('--to', dest='end_date', help='End date (YYYY-MM-DD format)')
-    
+    search_parser.add_argument(
+        '--limit', type=int, default=DEFAULT_LIMIT,
+        help='Number of results'
+    )
+    search_parser.add_argument(
+        '--from', dest='start_date',
+        help='Start date (YYYY-MM-DD format)'
+    )
+    search_parser.add_argument(
+        '--to', dest='end_date',
+        help='End date (YYYY-MM-DD format)'
+    )
+
     # Stats command
     subparsers.add_parser('stats', help='Show database statistics')
-    
+
+    return parser
+
+
+def main() -> None:
+    """Main CLI entry point."""
+    parser = setup_parser()
     args = parser.parse_args()
-    
+
     # Check if database exists
-    if not Path(args.db).exists():
+    db_path = Path(args.db)
+    if not db_path.exists():
         print(f"Error: Database not found at {args.db}")
         print("Run the crawler first to create the database.")
         sys.exit(1)
-    
+
     # Initialize database
-    db = Database(args.db)
-    
+    try:
+        db = Database(args.db)
+    except Exception as e:
+        print(f"Error: Failed to connect to database: {e}")
+        sys.exit(1)
+
     # Execute command
-    if args.command == 'sources':
-        list_sources(db)
-    elif args.command == 'articles':
-        list_articles(db, limit=args.limit, source_id=args.source)
-    elif args.command == 'search':
-        search_articles(db, args.keyword, limit=args.limit,
-                       start_date=args.start_date, end_date=args.end_date)
-    elif args.command == 'stats':
-        show_stats(db)
+    if args.command in COMMANDS:
+        try:
+            COMMANDS[args.command](db, args)
+        except Exception as e:
+            print(f"Error: Command failed: {e}")
+            sys.exit(1)
     else:
         parser.print_help()
 
