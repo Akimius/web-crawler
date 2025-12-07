@@ -92,9 +92,13 @@ class RBCUkraineCrawler(BaseCrawler):
         return urls
 
     def get_article_urls(self) -> List[str]:
-        """Get article URLs from RBC Ukraine archive page(s)"""
+        """Get article URLs from RBC Ukraine archive page(s)
+
+        Returns list of tuples: (url, published_date)
+        The date is extracted from the archive URL and time from the page.
+        """
         archive_urls = self._generate_archive_urls()
-        all_article_urls = []
+        self._article_dates = {}  # Store url -> date mapping
 
         for archive_url in archive_urls:
             logger.info(f"Fetching articles from: {archive_url}")
@@ -102,36 +106,43 @@ class RBCUkraineCrawler(BaseCrawler):
             if not html:
                 continue
 
+            # Extract date from archive URL (e.g., /2025/12/01)
+            import re
+            date_match = re.search(r'/(\d{4})/(\d{2})/(\d{2})$', archive_url)
+            archive_date = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}" if date_match else None
+
             soup = self.parse_html(html)
 
             # RBC Ukraine archive page structure
             # Articles are in <div class="newsline"> > <div> > <a> elements
-            article_links = soup.select('div.newsline div a')
+            article_divs = soup.select('div.newsline > div')
 
-            if not article_links:
-                # Fallback: try without newsline class
-                article_links = soup.select('div.newsline a')
+            for div in article_divs:
+                link = div.select_one('a')
+                if not link:
+                    continue
 
-            if not article_links:
-                # Try older selectors as fallback
-                article_links = soup.select('a.item__title')
-
-            if not article_links:
-                # Generic fallback
-                article_links = soup.select('div.item a')
-
-            for link in article_links:
                 href = link.get('href')
-                if href:
-                    # RBC uses absolute URLs in archive pages
-                    # But ensure we convert relative URLs if any exist
-                    absolute_url = self.absolute_url(href)
-                    # Only include actual news article URLs (contain /news/ or /ukr/)
-                    if self.is_valid_url(absolute_url) and 'rbc.ua' in absolute_url and '/news/' in absolute_url:
-                        all_article_urls.append(absolute_url)
+                if not href:
+                    continue
+
+                absolute_url = self.absolute_url(href)
+                if not (self.is_valid_url(absolute_url) and 'rbc.ua' in absolute_url and '/news/' in absolute_url):
+                    continue
+
+                # Get time from span.time element
+                time_span = link.select_one('span.time')
+                time_str = time_span.get_text(strip=True) if time_span else None
+
+                # Combine date and time
+                if archive_date:
+                    if time_str:
+                        self._article_dates[absolute_url] = f"{archive_date} {time_str}"
+                    else:
+                        self._article_dates[absolute_url] = archive_date
 
         # Remove duplicates while preserving order
-        unique_urls = list(dict.fromkeys(all_article_urls))
+        unique_urls = list(dict.fromkeys(self._article_dates.keys()))
         logger.info(f"Found {len(unique_urls)} unique article URLs from RBC Ukraine")
 
         return unique_urls
@@ -154,7 +165,6 @@ class RBCUkraineCrawler(BaseCrawler):
             return None
 
         # Extract article content
-        # RBC typically uses article__text or similar classes
         content_container = soup.select_one('div.article__text')
         if content_container:
             paragraphs = content_container.find_all('p')
@@ -168,51 +178,12 @@ class RBCUkraineCrawler(BaseCrawler):
             else:
                 content = ''
 
-        # Extract published date
-        published_date = None
+        # Get published date from pre-extracted dates (from archive page)
+        published_date = getattr(self, '_article_dates', {}).get(url)
 
-        # Try to get from time element
-        time_element = soup.select_one('time')
-        if time_element:
-            published_date = time_element.get('datetime')
-            if not published_date:
-                published_date = time_element.get_text(strip=True)
-
-        # Try to get from article meta
-        if not published_date:
-            date_element = soup.select_one('div.article__date, span.article__date')
-            if date_element:
-                published_date = date_element.get_text(strip=True)
-
-        # Try to get from meta tags
-        if not published_date:
-            meta_date = soup.select_one('meta[property="article:published_time"]')
-            if meta_date:
-                published_date = meta_date.get('content')
-
-        # If still no date, try to extract from URL
-        if not published_date:
-            import re
-            # Try to extract Unix timestamp from URL (e.g., news/article-name-1731623582.html)
-            timestamp_match = re.search(r'-(\d{10})\.html$', url)
-            if timestamp_match:
-                timestamp = int(timestamp_match.group(1))
-                # Use UTC and add 2 hours for Kyiv timezone (UTC+2)
-                published_date = datetime.utcfromtimestamp(timestamp + 2*3600).strftime('%Y-%m-%d')
-            else:
-                # Try to extract date from URL pattern: /YYYY/MM/DD/
-                date_match = re.search(r'/(\d{4})/(\d{2})/(\d{2})/', url)
-                if date_match:
-                    published_date = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
-                else:
-                    # Last resort: use today's date
-                    published_date = datetime.now().strftime('%Y-%m-%d')
-
-        # Normalize date to YYYY-MM-DD format if it contains time
-        if published_date:
-            # If date contains 'T' or space (ISO format or datetime), extract just the date part
-            if 'T' in published_date or ' ' in published_date:
-                published_date = published_date.split('T')[0].split(' ')[0]
+        # Extract just the date part (YYYY-MM-DD) if it includes time
+        if published_date and ' ' in published_date:
+            published_date = published_date.split(' ')[0]
 
         return {
             'title': title,
