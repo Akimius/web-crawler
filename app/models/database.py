@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+import re
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
@@ -58,8 +59,6 @@ class Database:
                     content TEXT,
                     published_date TEXT,
                     scraped_date TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
                     FOREIGN KEY (source_id) REFERENCES sources (id) ON DELETE CASCADE
                 )
             ''')
@@ -163,15 +162,26 @@ class Source:
 
 class Article:
     """Model for articles"""
-    
+
     def __init__(self, db: Database):
         self.db = db
-    
+
+    @staticmethod
+    def _normalize_content(content: Optional[str]) -> Optional[str]:
+        """Normalize content by trimming whitespace and collapsing multiple newlines"""
+        if content is None:
+            return None
+        # Replace multiple newlines (with optional whitespace) with single newline
+        content = re.sub(r'\n\s*\n+', '\n', content)
+        # Trim leading/trailing whitespace
+        return content.strip()
+
     def create(self, source_id: int, url: str, title: str,
                content: Optional[str] = None,
                published_date: Optional[str] = None) -> Optional[int]:
         """Create a new article"""
         now = datetime.utcnow().isoformat()
+        content = self._normalize_content(content)
 
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
@@ -179,9 +189,9 @@ class Article:
             try:
                 cursor.execute('''
                     INSERT INTO articles
-                    (source_id, url, title, content, published_date, scraped_date, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (source_id, url, title, content, published_date, now, now, now))
+                    (source_id, url, title, content, published_date, scraped_date)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (source_id, url, title, content, published_date, now))
 
                 article_id = cursor.lastrowid
                 logger.info(f"Created article: {title[:50]}... (ID: {article_id})")
@@ -340,7 +350,7 @@ class Article:
                 for article in batch:
                     url = article.get('url')
                     title = article.get('title')
-                    content = article.get('content')
+                    content = self._normalize_content(article.get('content'))
                     published_date = article.get('published_date')
 
                     if not url or not title:
@@ -350,9 +360,9 @@ class Article:
                     try:
                         cursor.execute('''
                             INSERT INTO articles
-                            (source_id, url, title, content, published_date, scraped_date, created_at, updated_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (source_id, url, title, content, published_date, now, now, now))
+                            (source_id, url, title, content, published_date, scraped_date)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        ''', (source_id, url, title, content, published_date, now))
                         saved += 1
                         logger.debug(f"Saved article: {title[:50]}...")
                     except sqlite3.IntegrityError:
