@@ -48,7 +48,7 @@ class RBCUkraineCrawler(BaseCrawler):
 
         # Set the initial archive URL (will be overridden if date range)
         date_parts = start_date.split('-')
-        archive_url = f"https://www.rbc.ua/ukr/archive/{date_parts[0]}/{date_parts[1]}/{date_parts[2]}"
+        archive_url = f"https://www.rbc.ua/rus/archive/{date_parts[0]}/{date_parts[1]}/{date_parts[2]}"
 
         super().__init__(
             source_url=archive_url,
@@ -76,7 +76,7 @@ class RBCUkraineCrawler(BaseCrawler):
                 current = start
                 while current <= end:
                     date_str = current.strftime('%Y/%m/%d')
-                    url = f"https://www.rbc.ua/ukr/archive/{date_str}"
+                    url = f"https://www.rbc.ua/rus/archive/{date_str}"
                     urls.append(url)
                     current += timedelta(days=1)
 

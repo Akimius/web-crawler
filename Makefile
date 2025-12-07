@@ -15,18 +15,18 @@ build: ## Build Docker image
 crawl: ## Run one-time crawl (today's articles)
 	docker compose run --rm crawler python main.py
 
-crawl-date: ## Crawl specific date (use DATE=YYYY-MM-DD)
-	@if [ -z "$(DATE)" ]; then \
-		echo "Usage: make crawl-date DATE=2024-11-15"; \
+crawl-date: ## Crawl specific date (use date=YYYY-MM-DD)
+	@if [ -z "$(date)" ]; then \
+		echo "Usage: make crawl-date date=2024-11-15"; \
 	else \
-		docker compose run --rm crawler python main.py --from $(DATE) --to $(DATE); \
+		docker compose run --rm crawler python main.py --from $(date) --to $(date); \
 	fi
 
-crawl-range: ## Crawl date range (use FROM=YYYY-MM-DD TO=YYYY-MM-DD)
-	@if [ -z "$(FROM)" ]; then \
-		echo "Usage: make crawl-range FROM=2024-11-01 TO=2024-11-30"; \
+crawl-range: ## Crawl date range (use from=YYYY-MM-DD to=YYYY-MM-DD)
+	@if [ -z "$(from)" ]; then \
+		echo "Usage: make crawl-range from=2024-11-01 to=2024-11-30"; \
 	else \
-		docker compose run --rm crawler python main.py --from $(FROM) --to $(or $(TO),$(FROM)); \
+		docker compose run --rm crawler python main.py --from $(from) --to $(or $(to),$(from)); \
 	fi
 
 start: ## Start scheduled crawler in background
@@ -50,14 +50,17 @@ stats: ## Show database statistics
 sources: ## List all news sources
 	docker compose run --rm crawler python cli.py sources
 
-articles: ## List recent articles (use LIMIT=N to customize)
-	docker compose run --rm crawler python cli.py articles --limit $(or $(LIMIT),20)
+articles: ## List recent articles (use limit=N to customize)
+	docker compose run --rm crawler python cli.py articles --limit $(or $(limit),20)
 
-search: ## Search articles (use KEYWORD=word)
-	@if [ -z "$(KEYWORD)" ]; then \
-		echo "Usage: make search KEYWORD=your_keyword"; \
+search: ## Search articles (use keyword=word, limit=N, from=date, to=date)
+	@if [ -z "$(keyword)" ]; then \
+		echo "Usage: make search keyword=your_keyword [limit=N] [from=YYYY-MM-DD] [to=YYYY-MM-DD]"; \
 	else \
-		docker compose run --rm crawler python cli.py search "$(KEYWORD)"; \
+		docker compose run --rm crawler python cli.py search --keyword "$(keyword)" \
+			$(if $(limit),--limit $(limit)) \
+			$(if $(from),--from $(from)) \
+			$(if $(to),--to $(to)); \
 	fi
 
 shell: ## Open bash shell in container
@@ -65,9 +68,6 @@ shell: ## Open bash shell in container
 
 db: ## Open SQLite database shell
 	sqlite3 data/news.db
-
-test: ## Run a test crawl (same as crawl)
-	docker compose run --rm crawler python main.py
 
 rebuild: ## Rebuild and restart everything
 	docker compose down
