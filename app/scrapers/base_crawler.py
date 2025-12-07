@@ -160,10 +160,17 @@ class BaseCrawler(ABC):
         """
         pass
     
-    def crawl(self) -> List[Dict[str, Any]]:
+    def crawl(self, on_batch: callable = None, batch_size: int = 10) -> List[Dict[str, Any]]:
         """
         Main crawl method that orchestrates the crawling process.
-        Returns list of parsed articles.
+
+        Args:
+            on_batch: Optional callback function called with batch of articles.
+                      Signature: on_batch(articles: List[Dict]) -> None
+            batch_size: Number of articles per batch (default: 10)
+
+        Returns:
+            List of all parsed articles (empty if on_batch is provided)
         """
         logger.info(f"Starting crawl for: {self.source_url}")
 
@@ -178,7 +185,10 @@ class BaseCrawler(ABC):
 
         # Parse each article
         articles = []
+        batch = []
         filtered_count = 0
+        total_parsed = 0
+
         for idx, url in enumerate(article_urls, 1):
             logger.info(f"Processing article {idx}/{len(article_urls)}: {url}")
 
@@ -188,7 +198,16 @@ class BaseCrawler(ABC):
 
                 # Filter by date if configured
                 if self.is_date_in_range(article_data.get('published_date')):
-                    articles.append(article_data)
+                    total_parsed += 1
+
+                    if on_batch:
+                        batch.append(article_data)
+                        # Save batch when it reaches batch_size
+                        if len(batch) >= batch_size:
+                            on_batch(batch)
+                            batch = []
+                    else:
+                        articles.append(article_data)
                 else:
                     published_date = article_data.get('published_date', 'Unknown')
                     logger.debug(f"Article filtered out by date: {published_date}")
@@ -196,10 +215,14 @@ class BaseCrawler(ABC):
             else:
                 logger.warning(f"Failed to parse article: {url}")
 
+        # Save remaining articles in the last batch
+        if on_batch and batch:
+            on_batch(batch)
+
         if filtered_count > 0:
             logger.info(f"Filtered out {filtered_count} articles by date range")
 
-        logger.info(f"Successfully parsed {len(articles)}/{len(article_urls)} articles")
+        logger.info(f"Successfully parsed {total_parsed}/{len(article_urls)} articles")
         return articles
     
     def close(self):

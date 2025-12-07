@@ -25,10 +25,6 @@ logger = logging.getLogger(__name__)
 
 def init_sources(manager: CrawlerManager):
     """Initialize default news sources"""
-    # Get today's date for RBC Ukraine archive
-    from datetime import datetime
-    today = datetime.now().strftime('%Y-%m-%d')
-
     sources = [
         # {
         #     'name': 'BBC News',
@@ -47,7 +43,7 @@ def init_sources(manager: CrawlerManager):
         # },
         {
             'name': 'РБК-Україна',
-            'url': f'https://www.rbc.ua/ukr/archive/{today.replace("-", "/")}',
+            'url': 'https://www.rbc.ua/ukr/archive',
             'parser_class': 'RBCUkraineCrawler'
         }
     ]

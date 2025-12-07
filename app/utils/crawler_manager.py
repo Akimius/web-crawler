@@ -84,44 +84,29 @@ class CrawlerManager:
         )
         
         try:
-            # Crawl articles
-            articles = crawler.crawl()
-            
-            saved = 0
-            skipped = 0
-            
-            # Save articles to database
-            for article_data in articles:
-                # Check if article already exists
-                if self.article_model.exists(article_data['url']):
-                    logger.debug(f"Article already exists: {article_data['url']}")
-                    skipped += 1
-                    continue
-                
-                # Save new article
-                article_id = self.article_model.create(
+            # Track stats
+            stats = {'found': 0, 'saved': 0, 'skipped': 0}
+
+            def save_batch(articles_batch):
+                """Callback to save articles immediately as they're scraped"""
+                stats['found'] += len(articles_batch)
+                result = self.article_model.create_batch(
                     source_id=source_id,
-                    url=article_data['url'],
-                    title=article_data['title'],
-                    content=article_data.get('content'),
-                    published_date=article_data.get('published_date')
+                    articles=articles_batch,
+                    batch_size=len(articles_batch)  # Save entire batch at once
                 )
-                
-                if article_id:
-                    saved += 1
-                else:
-                    skipped += 1
-            
+                stats['saved'] += result['saved']
+                stats['skipped'] += result['skipped']
+
+            # Crawl articles with callback to save every 10 articles
+            crawler.crawl(on_batch=save_batch, batch_size=10)
+
             # Update source last_crawled timestamp
             self.source_model.update_last_crawled(source_id)
-            
-            logger.info(f"Crawl complete: {saved} saved, {skipped} skipped")
-            
-            return {
-                'found': len(articles),
-                'saved': saved,
-                'skipped': skipped
-            }
+
+            logger.info(f"Crawl complete: {stats['saved']} saved, {stats['skipped']} skipped")
+
+            return stats
             
         except Exception as e:
             logger.error(f"Error crawling source {source['name']}: {e}", exc_info=True)

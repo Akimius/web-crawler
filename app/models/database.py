@@ -314,3 +314,54 @@ class Article:
                 (date,)
             )
             return cursor.fetchone()['count']
+
+    def create_batch(self, source_id: int, articles: List[Dict[str, Any]],
+                     batch_size: int = 10) -> Dict[str, int]:
+        """Create multiple articles in batches
+
+        Args:
+            source_id: The source ID for all articles
+            articles: List of article dicts with url, title, content, published_date
+            batch_size: Number of articles to insert per batch
+
+        Returns:
+            Dict with 'saved' and 'skipped' counts
+        """
+        saved = 0
+        skipped = 0
+        now = datetime.utcnow().isoformat()
+
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+
+            for i in range(0, len(articles), batch_size):
+                batch = articles[i:i + batch_size]
+
+                for article in batch:
+                    url = article.get('url')
+                    title = article.get('title')
+                    content = article.get('content')
+                    published_date = article.get('published_date')
+
+                    if not url or not title:
+                        skipped += 1
+                        continue
+
+                    try:
+                        cursor.execute('''
+                            INSERT INTO articles
+                            (source_id, url, title, content, published_date, scraped_date, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (source_id, url, title, content, published_date, now, now, now))
+                        saved += 1
+                        logger.debug(f"Saved article: {title[:50]}...")
+                    except sqlite3.IntegrityError:
+                        skipped += 1
+                        logger.debug(f"Article already exists: {url}")
+
+                # Commit after each batch
+                conn.commit()
+                logger.info(f"Batch {i // batch_size + 1}: saved {saved}, skipped {skipped}")
+
+        logger.info(f"Batch insert complete: {saved} saved, {skipped} skipped")
+        return {'saved': saved, 'skipped': skipped}
