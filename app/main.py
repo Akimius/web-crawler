@@ -43,7 +43,7 @@ def init_sources(manager: CrawlerManager):
         # },
         {
             'name': 'РБК-Україна',
-            'url': 'https://www.rbc.ua/ukr/archive',
+            'url': 'https://www.rbc.ua/rus/archive',
             'parser_class': 'RBCUkraineCrawler'
         }
     ]

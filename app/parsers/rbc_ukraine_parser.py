@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class RBCUkraineCrawler(BaseCrawler):
     """RBC Ukraine (РБК-Україна) news crawler with date-based archive support
 
-    Archive URL format: https://www.rbc.ua/ukr/archive/YYYY/MM/DD
+    Archive URL format: https://www.rbc.ua/rus/archive/YYYY/MM/DD
     This crawler can fetch articles from specific dates or date ranges.
 
     Supports crawling:
@@ -45,6 +45,10 @@ class RBCUkraineCrawler(BaseCrawler):
             # If only end_date provided, use it as both start and end
             start_date = end_date
             logger.info(f"Only end date provided, using single date: {end_date}")
+
+        # Update kwargs with processed dates so parent class gets them
+        kwargs['start_date'] = start_date
+        kwargs['end_date'] = end_date
 
         # Set the initial archive URL (will be overridden if date range)
         date_parts = start_date.split('-')
@@ -186,16 +190,23 @@ class RBCUkraineCrawler(BaseCrawler):
             if meta_date:
                 published_date = meta_date.get('content')
 
-        # If still no date, try to extract from URL or use today's date as fallback
+        # If still no date, try to extract from URL
         if not published_date:
-            # Try to extract date from URL pattern: /YYYY/MM/DD/
             import re
-            date_match = re.search(r'/(\d{4})/(\d{2})/(\d{2})/', url)
-            if date_match:
-                published_date = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
+            # Try to extract Unix timestamp from URL (e.g., news/article-name-1731623582.html)
+            timestamp_match = re.search(r'-(\d{10})\.html$', url)
+            if timestamp_match:
+                timestamp = int(timestamp_match.group(1))
+                # Use UTC and add 2 hours for Kyiv timezone (UTC+2)
+                published_date = datetime.utcfromtimestamp(timestamp + 2*3600).strftime('%Y-%m-%d')
             else:
-                # Last resort: use today's date
-                published_date = datetime.now().strftime('%Y-%m-%d')
+                # Try to extract date from URL pattern: /YYYY/MM/DD/
+                date_match = re.search(r'/(\d{4})/(\d{2})/(\d{2})/', url)
+                if date_match:
+                    published_date = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
+                else:
+                    # Last resort: use today's date
+                    published_date = datetime.now().strftime('%Y-%m-%d')
 
         # Normalize date to YYYY-MM-DD format if it contains time
         if published_date:
