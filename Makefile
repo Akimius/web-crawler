@@ -6,8 +6,6 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
-setup: ## Initialize project structure
-	./setup.sh
 
 build: ## Build Docker image
 	docker compose build
