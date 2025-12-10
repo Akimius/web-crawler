@@ -9,6 +9,9 @@ help: ## Show this help message
 setup: ## Initialize project structure
 	./setup.sh
 
+clean: ## Remove database and logs, CSV-files
+	rm -rf data/*.db data/*.csv data/*.db-journal logs/*.log
+
 build: ## Build Docker image
 	docker compose build
 
@@ -29,9 +32,6 @@ crawl-range: ## Crawl date range (use from=YYYY-MM-DD to=YYYY-MM-DD)
 		docker compose run --rm crawler python main.py --from $(from) --to $(or $(to),$(from)); \
 	fi
 
-start: ## Start scheduled crawler in background
-	docker compose up -d
-
 stop: ## Stop scheduled crawler
 	docker compose down
 
@@ -40,9 +40,6 @@ restart: ## Restart scheduled crawler
 
 logs: ## View crawler logs
 	docker compose logs -f crawler
-
-clean: ## Remove database and logs
-	rm -rf data/*.db data/*.db-journal logs/*.log
 
 stats: ## Show database statistics
 	docker compose run --rm crawler python cli.py stats
