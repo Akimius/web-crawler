@@ -105,6 +105,10 @@ Examples:
     request_delay = float(os.getenv('REQUEST_DELAY', 1.0))
     timeout = int(os.getenv('TIMEOUT', 30))
 
+    # Storage configuration
+    data_storage = os.getenv('DATA_STORAGE', 'db')
+    csv_dir = os.getenv('CSV_DIR', 'data')
+
     # CLI arguments override environment variables
     start_date = args.start_date  # Format: YYYY-MM-DD
     end_date = args.end_date      # Format: YYYY-MM-DD
@@ -124,6 +128,11 @@ Examples:
     # Ensure data directory exists
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
+    # Log storage configuration
+    logger.info(f"Storage backends: {data_storage}")
+    if 'csv' in data_storage.lower():
+        logger.info(f"CSV directory: {csv_dir}")
+
     # Initialize crawler manager
     manager = CrawlerManager(
         db_path=db_path,
@@ -131,7 +140,9 @@ Examples:
         request_delay=request_delay,
         timeout=timeout,
         start_date=start_date,
-        end_date=end_date
+        end_date=end_date,
+        data_storage=data_storage,
+        csv_dir=csv_dir
     )
     
     # Initialize sources

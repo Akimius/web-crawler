@@ -1,7 +1,8 @@
 import logging
 import os
 from typing import List, Dict, Any, Type
-from models.database import Database, Source, Article
+from models.database import Source
+from models.storage import StorageManager
 from scrapers.base_crawler import BaseCrawler
 # Commented out other parsers - only using RBC Ukraine for now
 # from parsers.bbc_parser import BBCNewsCrawler
@@ -26,10 +27,15 @@ class CrawlerManager:
     
     def __init__(self, db_path: str, user_agent: str = None,
                  request_delay: float = 1.0, timeout: int = 30,
-                 start_date: str = None, end_date: str = None):
-        self.db = Database(db_path)
-        self.source_model = Source(self.db)
-        self.article_model = Article(self.db)
+                 start_date: str = None, end_date: str = None,
+                 data_storage: str = 'db', csv_dir: str = 'data'):
+        # Initialize storage manager for DB and/or CSV
+        self.storage = StorageManager(data_storage, db_path, csv_dir)
+
+        if not self.storage.has_database():
+            raise ValueError("Database backend required for source management")
+
+        self.source_model = Source(self.storage.db)
 
         self.user_agent = user_agent
         self.request_delay = request_delay
@@ -88,12 +94,13 @@ class CrawlerManager:
             stats = {'found': 0, 'saved': 0, 'skipped': 0}
 
             def save_batch(articles_batch):
-                """Callback to save articles immediately as they're scraped"""
+                """Callback to save articles to all configured backends"""
                 stats['found'] += len(articles_batch)
-                result = self.article_model.create_batch(
+                result = self.storage.create_article_batch(
                     source_id=source_id,
+                    source_name=source['name'],
                     articles=articles_batch,
-                    batch_size=len(articles_batch)  # Save entire batch at once
+                    batch_size=len(articles_batch)
                 )
                 stats['saved'] += result['saved']
                 stats['skipped'] += result['skipped']
