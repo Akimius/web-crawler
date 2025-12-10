@@ -15,9 +15,6 @@ A Docker-based Python web crawler that parses news sites and stores articles in 
 
 ## Quick Start
 
-```bash
-# 1. Initialize project structure
-./setup.sh
 
 # 2. Build Docker image
 docker compose build

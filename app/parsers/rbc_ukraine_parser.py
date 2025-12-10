@@ -168,13 +168,13 @@ class RBCUkraineCrawler(BaseCrawler):
         content_container = soup.select_one('div.article__text')
         if content_container:
             paragraphs = content_container.find_all('p')
-            content = '\n\n'.join([p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)])
+            content = '\n\n'.join([p.get_text(separator=' ', strip=True) for p in paragraphs if p.get_text(strip=True)])
         else:
             # Fallback to generic article content
             article_body = soup.select_one('article')
             if article_body:
                 paragraphs = article_body.find_all('p')
-                content = '\n\n'.join([p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)])
+                content = '\n\n'.join([p.get_text(separator=' ', strip=True) for p in paragraphs if p.get_text(strip=True)])
             else:
                 content = ''
 
