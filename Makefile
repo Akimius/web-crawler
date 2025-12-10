@@ -10,7 +10,7 @@ setup: ## Initialize project structure
 	./setup.sh
 
 clean: ## Remove database and logs, CSV-files
-	rm -rf data/*.db data/*.csv data/*.db-journal logs/*.log
+	rm -rf data/*.db data/*.csv data/export/*.csv data/*.db-journal logs/*.log
 
 build: ## Build Docker image
 	docker compose build
