@@ -8,6 +8,8 @@ services:
       - ./app:/app
       - ./data:/app/data
       - ./logs:/app/logs
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
       - TZ=Europe/Kiev

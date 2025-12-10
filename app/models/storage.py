@@ -18,25 +18,29 @@ class StorageManager:
         """
         self.backends = self._parse_storage_config(data_storage)
 
-        self.db: Optional[Database] = None
+        # Database is always initialized for source management
+        self.db = Database(db_path)
+        self.source_model = Source(self.db)
+
+        # Article storage backends
         self.article_model: Optional[Article] = None
-        self.source_model: Optional[Source] = None
         self.csv_storage: Optional[CSVStorage] = None
 
         if 'db' in self.backends:
-            self.db = Database(db_path)
             self.article_model = Article(self.db)
-            self.source_model = Source(self.db)
-            logger.info(f"SQLite storage enabled: {db_path}")
+            logger.info(f"SQLite article storage enabled: {db_path}")
 
         if 'csv' in self.backends:
             self.csv_storage = CSVStorage(csv_dir)
-            logger.info(f"CSV storage enabled: {self.csv_storage.get_filepath()}")
+            logger.info(f"CSV article storage enabled: {self.csv_storage.get_filepath()}")
 
     def _parse_storage_config(self, data_storage: str) -> List[str]:
         """Parse DATA_STORAGE env var into list of backends"""
         if not data_storage:
             return ['db']  # Default to SQLite only
+
+        # Strip quotes that may come from .env file
+        data_storage = data_storage.strip('"\'')
 
         backends = [b.strip().lower() for b in data_storage.split(',')]
         valid = {'db', 'csv'}

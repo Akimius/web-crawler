@@ -32,10 +32,8 @@ class CrawlerManager:
         # Initialize storage manager for DB and/or CSV
         self.storage = StorageManager(data_storage, db_path, csv_dir)
 
-        if not self.storage.has_database():
-            raise ValueError("Database backend required for source management")
-
-        self.source_model = Source(self.storage.db)
+        # Source model from storage manager (DB always available for sources)
+        self.source_model = self.storage.source_model
 
         self.user_agent = user_agent
         self.request_delay = request_delay
