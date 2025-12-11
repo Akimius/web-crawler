@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: news_crawler
+#    shm_size: '2gb'  # Important for Chrome
     volumes:
       - ./app:/app
       - ./data:/app/data
