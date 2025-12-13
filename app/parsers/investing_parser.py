@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import List, Dict, Any, Optional
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -12,15 +13,19 @@ class InvestingCrawler(BaseCrawler):
     """Investing.com Gold News crawler using Selenium for JS-rendered content.
 
     Extracts article data directly from the news list page without following links.
+    Supports optional email/password authentication for accessing premium content.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, email: str = None, password: str = None, **kwargs):
         super().__init__(
             source_url='https://www.investing.com/commodities/gold-news/12',
             **kwargs
         )
         self._driver = None
         self._articles_cache = []  # Store articles extracted from list page
+        self._email = email or os.getenv('INVESTING_EMAIL')
+        self._password = password or os.getenv('INVESTING_PASSWORD')
+        self._logged_in = False
 
     def _get_driver(self):
         """Lazy initialization of Selenium driver"""
@@ -30,11 +35,61 @@ class InvestingCrawler(BaseCrawler):
             logger.info("Selenium driver initialized for Investing.com")
         return self._driver
 
+    def _login(self) -> bool:
+        """Authenticate with Investing.com using email/password."""
+        if self._logged_in or not self._email or not self._password:
+            return self._logged_in
+
+        driver = self._get_driver()
+        try:
+            logger.info("Attempting to log in to Investing.com")
+            driver.get("https://www.investing.com")
+
+            wait = WebDriverWait(driver, 10)
+
+            # Click sign-in button to open login modal
+            sign_in_btn = wait.until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, 'a[data-test="sign-in-button"], .login-btn, [class*="signIn"]'))
+            )
+            sign_in_btn.click()
+
+            # Wait for login form and fill credentials
+            email_field = wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'input[type="email"], input[name="email"], #loginFormUser_email'))
+            )
+            email_field.clear()
+            email_field.send_keys(self._email)
+
+            password_field = driver.find_element(By.CSS_SELECTOR, 'input[type="password"], input[name="password"], #loginForm_password')
+            password_field.clear()
+            password_field.send_keys(self._password)
+
+            # Submit login form
+            submit_btn = driver.find_element(By.CSS_SELECTOR, 'button[type="submit"], input[type="submit"], .login-btn-submit')
+            submit_btn.click()
+
+            # Wait for login to complete (check for user menu or profile element)
+            wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, '[data-test="user-menu"], .user-menu, [class*="userMenu"]'))
+            )
+
+            self._logged_in = True
+            logger.info("Successfully logged in to Investing.com")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to log in to Investing.com: {e}")
+            return False
+
     def get_article_urls(self) -> List[str]:
         """Get article URLs and extract article data from news list page."""
         driver = self._get_driver()
         self._articles_cache = []
         urls = []
+
+        # Attempt login if credentials provided
+        if self._email and self._password:
+            self._login()
 
         try:
             logger.info(f"Fetching: {self.source_url}")
