@@ -9,7 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 class InvestingCrawler(BaseCrawler):
-    """Investing.com Gold News crawler using Selenium for JS-rendered content"""
+    """Investing.com Gold News crawler using Selenium for JS-rendered content.
+
+    Extracts article data directly from the news list page without following links.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(
@@ -17,6 +20,7 @@ class InvestingCrawler(BaseCrawler):
             **kwargs
         )
         self._driver = None
+        self._articles_cache = []  # Store articles extracted from list page
 
     def _get_driver(self):
         """Lazy initialization of Selenium driver"""
@@ -27,8 +31,9 @@ class InvestingCrawler(BaseCrawler):
         return self._driver
 
     def get_article_urls(self) -> List[str]:
-        """Get article URLs from Investing.com gold news page using Selenium"""
+        """Get article URLs and extract article data from news list page."""
         driver = self._get_driver()
+        self._articles_cache = []
         urls = []
 
         try:
@@ -40,81 +45,73 @@ class InvestingCrawler(BaseCrawler):
                 EC.presence_of_element_located((By.CSS_SELECTOR, 'ul[data-test="news-list"]'))
             )
 
-            links = driver.find_elements(By.CSS_SELECTOR, 'a[data-test="article-title-link"]')
+            # Find all article items in the news list
+            news_list = driver.find_element(By.CSS_SELECTOR, 'ul[data-test="news-list"]')
+            article_items = news_list.find_elements(By.CSS_SELECTOR, 'li')
 
-            for link in links:
-                url = link.get_attribute("href")
-                if url and self.is_valid_url(url):
+            for item in article_items:
+                try:
+                    # Get title and URL from link
+                    link = item.find_element(By.CSS_SELECTOR, 'a[data-test="article-title-link"]')
+                    url = link.get_attribute("href")
+                    title = link.text.strip()
+
+                    if not url or not title:
+                        continue
+
+                    # Get description
+                    description = ''
+                    try:
+                        desc_elem = item.find_element(By.CSS_SELECTOR, 'p[data-test="article-description"]')
+                        description = desc_elem.text.strip()
+                    except Exception:
+                        pass
+
+                    # Get published date
+                    published_date = None
+                    try:
+                        time_elem = item.find_element(By.CSS_SELECTOR, 'time[data-test="article-publish-date"]')
+                        datetime_attr = time_elem.get_attribute('datetime')
+                        if datetime_attr:
+                            # Extract date from "2025-12-11 17:24:48" format
+                            published_date = datetime_attr.split(' ')[0]
+                    except Exception:
+                        pass
+
+                    # Store the article data
+                    self._articles_cache.append({
+                        'url': url,
+                        'title': title,
+                        'content': description,
+                        'published_date': published_date
+                    })
                     urls.append(url)
+                    logger.debug(f"Extracted: {title[:50]}... ({published_date})")
 
-            # Remove duplicates while preserving order
-            urls = list(dict.fromkeys(urls))
-            logger.info(f"Found {len(urls)} article URLs from Investing.com")
+                except Exception as e:
+                    logger.debug(f"Failed to extract article from list item: {e}")
+                    continue
+
+            logger.info(f"Found {len(urls)} articles from Investing.com")
 
         except Exception as e:
-            logger.error(f"Failed to get article URLs: {e}")
+            logger.error(f"Failed to get articles: {e}")
 
         return urls
 
     def parse_article(self, url: str) -> Optional[Dict[str, Any]]:
-        """Parse individual article page using Selenium"""
-        driver = self._get_driver()
+        """Return cached article data (already extracted from list page)."""
+        for article in self._articles_cache:
+            if article['url'] == url:
+                logger.info(f"Returning cached article: {article['title'][:50]}...")
+                return {
+                    'title': article['title'],
+                    'content': article['content'],
+                    'published_date': article['published_date']
+                }
 
-        try:
-            logger.info(f"Parsing article: {url}")
-            driver.get(url)
-
-            wait = WebDriverWait(driver, 10)
-            wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, 'h1'))
-            )
-
-            # Extract title
-            title_element = driver.find_element(By.CSS_SELECTOR, 'h1')
-            title = title_element.text if title_element else None
-
-            if not title:
-                logger.warning(f"No title found for: {url}")
-                return None
-
-            # Extract content from article body
-            content = ''
-            try:
-                content_element = driver.find_element(By.CSS_SELECTOR, 'div.article_WYSIWYG__O0uhw')
-                if content_element:
-                    paragraphs = content_element.find_elements(By.TAG_NAME, 'p')
-                    content = '\n\n'.join([p.text for p in paragraphs if p.text.strip()])
-            except Exception:
-                # Fallback to generic article content
-                try:
-                    article_element = driver.find_element(By.CSS_SELECTOR, 'article')
-                    if article_element:
-                        paragraphs = article_element.find_elements(By.TAG_NAME, 'p')
-                        content = '\n\n'.join([p.text for p in paragraphs if p.text.strip()])
-                except Exception:
-                    pass
-
-            # Extract published date
-            published_date = None
-            try:
-                time_element = driver.find_element(By.CSS_SELECTOR, 'time')
-                if time_element:
-                    published_date = time_element.get_attribute('datetime')
-                    # Extract just the date part (YYYY-MM-DD) if it includes time
-                    if published_date and 'T' in published_date:
-                        published_date = published_date.split('T')[0]
-            except Exception:
-                pass
-
-            return {
-                'title': title,
-                'content': content,
-                'published_date': published_date
-            }
-
-        except Exception as e:
-            logger.error(f"Failed to parse article {url}: {e}")
-            return None
+        logger.warning(f"Article not found in cache: {url}")
+        return None
 
     def close(self):
         """Clean up Selenium driver and parent resources"""

@@ -45,6 +45,11 @@ def init_sources(manager: CrawlerManager):
             'name': 'РБК-Україна',
             'url': 'https://www.rbc.ua/rus/archive',
             'parser_class': 'RBCUkraineCrawler'
+        },
+        {
+            'name': 'Investing.com Gold News',
+            'url': 'https://www.investing.com/commodities/gold-news/12',
+            'parser_class': 'InvestingCrawler'
         }
     ]
     

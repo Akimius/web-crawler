@@ -20,7 +20,7 @@ class CrawlerManager:
     # Registry of available parsers
     # Only RBC Ukraine parser is active - others commented out
     PARSERS: Dict[str, Type[BaseCrawler]] = {
-        'RBCUkraineCrawler': RBCUkraineCrawler,
+        # 'RBCUkraineCrawler': RBCUkraineCrawler,
         'InvestingCrawler': InvestingCrawler,
         # 'BBCNewsCrawler': BBCNewsCrawler,
         # 'GuardianNewsCrawler': GuardianNewsCrawler,
