@@ -23,8 +23,8 @@ class InvestingCrawler(BaseCrawler):
         )
         self._driver = None
         self._articles_cache = []  # Store articles extracted from list page
-        self._email = email or os.getenv('INVESTING_EMAIL')
-        self._password = password or os.getenv('INVESTING_PASSWORD')
+        self._email = 'akim.savchenko@gmail.com'
+        self._password = 'ab123456789'
         self._logged_in = False
 
     def _get_driver(self):
@@ -45,7 +45,7 @@ class InvestingCrawler(BaseCrawler):
             logger.info("Attempting to log in to Investing.com")
             driver.get("https://www.investing.com")
 
-            wait = WebDriverWait(driver, 10)
+            wait = WebDriverWait(driver, 3)
 
             # Click sign-in button to open login modal
             sign_in_btn = wait.until(
