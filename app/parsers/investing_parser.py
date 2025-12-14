@@ -183,11 +183,16 @@ class InvestingCrawler(BaseCrawler):
                         except Exception:
                             pass
 
+                        # Skip PRO links (premium content)
+                        if '/pro/' in url.lower():
+                            logger.debug(f"Skipping PRO article: {title[:50]}...")
+                            continue
+
                         # Store the article data
                         self._articles_cache.append({
                             'url': url,
                             'title': title,
-                            'content': description,
+                            'description': description,
                             'published_date': published_date
                         })
                         urls.append(url)
@@ -209,18 +214,66 @@ class InvestingCrawler(BaseCrawler):
         return urls
 
     def parse_article(self, url: str) -> Optional[Dict[str, Any]]:
-        """Return cached article data (already extracted from list page)."""
+        """Fetch article page and extract full content text."""
+        # Get cached metadata
+        cached = None
         for article in self._articles_cache:
             if article['url'] == url:
-                logger.info(f"Returning cached article: {article['title'][:50]}...")
-                return {
-                    'title': article['title'],
-                    'content': article['content'],
-                    'published_date': article['published_date']
-                }
+                cached = article
+                break
 
-        logger.warning(f"Article not found in cache: {url}")
-        return None
+        if not cached:
+            logger.warning(f"Article not found in cache: {url}")
+            return None
+
+        driver = self._get_driver()
+
+        try:
+            logger.info(f"Fetching article: {cached['title'][:50]}...")
+            driver.get(url)
+
+            wait = WebDriverWait(driver, 10)
+
+            # Wait for article content to load
+            wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'div#article'))
+            )
+
+            # Extract article text from the WYSIWYG content div
+            content = ''
+            try:
+                article_div = driver.find_element(
+                    By.CSS_SELECTOR,
+                    'div#article .article_WYSIWYG__O0uhw'
+                )
+                # Get text only (strips all HTML)
+                content = article_div.text.strip()
+            except NoSuchElementException:
+                # Fallback: try to get any text from article div
+                try:
+                    article_div = driver.find_element(By.CSS_SELECTOR, 'div#article')
+                    content = article_div.text.strip()
+                except NoSuchElementException:
+                    logger.warning(f"Could not find article content for: {url}")
+                    content = cached.get('description', '')
+
+            return {
+                'title': cached['title'],
+                'content': content,
+                'published_date': cached['published_date']
+            }
+
+        except TimeoutException:
+            logger.error(f"Timeout loading article: {url}")
+            # Return cached description as fallback
+            return {
+                'title': cached['title'],
+                'content': cached.get('description', ''),
+                'published_date': cached['published_date']
+            }
+        except Exception as e:
+            logger.error(f"Failed to parse article {url}: {e}")
+            return None
 
     def close(self):
         """Clean up Selenium driver and parent resources"""
