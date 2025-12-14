@@ -17,9 +17,12 @@ class InvestingCrawler(BaseCrawler):
     Supports optional email/password authentication for accessing premium content.
     """
 
-    def __init__(self, email: str = None, password: str = None, **kwargs):
+    def __init__(self, email: str = None, password: str = None,
+                 page_start: int = None, page_end: int = None, **kwargs):
+        self._page_start = page_start or 1
+        self._page_end = page_end or self._page_start
         super().__init__(
-            source_url='https://www.investing.com/commodities/gold-news/12',
+            source_url='https://www.investing.com/commodities/gold-news',
             **kwargs
         )
         self._driver = None
@@ -27,6 +30,7 @@ class InvestingCrawler(BaseCrawler):
         self._email = 'akim.savchenko@gmail.com'
         self._password = 'ab123456789'
         self._logged_in = False
+        logger.info(f"InvestingCrawler initialized for pages {self._page_start} to {self._page_end}")
 
     def _get_driver(self):
         """Lazy initialization of Selenium driver"""
@@ -35,6 +39,13 @@ class InvestingCrawler(BaseCrawler):
             self._driver = get_chrome_driver()
             logger.info("Selenium driver initialized for Investing.com")
         return self._driver
+
+    def _generate_page_urls(self) -> List[str]:
+        """Generate URLs for each page in the configured range"""
+        return [
+            f"{self.source_url}/{page}"
+            for page in range(self._page_start, self._page_end + 1)
+        ]
 
     def _login(self) -> bool:
         """Authenticate with Investing.com using email/password."""
@@ -114,7 +125,7 @@ class InvestingCrawler(BaseCrawler):
             return False
 
     def get_article_urls(self) -> List[str]:
-        """Get article URLs and extract article data from news list page."""
+        """Get article URLs and extract article data from news list pages."""
         driver = self._get_driver()
         self._articles_cache = []
         urls = []
@@ -123,66 +134,77 @@ class InvestingCrawler(BaseCrawler):
         if self._email and self._password:
             self._login()
 
-        try:
-            logger.info(f"Fetching: {self.source_url}")
-            driver.get(self.source_url)
+        # Get all page URLs to crawl
+        page_urls = self._generate_page_urls()
+        total_pages = len(page_urls)
+        logger.info(f"Crawling {total_pages} page(s) from Investing.com")
 
-            wait = WebDriverWait(driver, 10)
-            wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, 'ul[data-test="news-list"]'))
-            )
+        for page_num, page_url in enumerate(page_urls, start=1):
+            try:
+                logger.info(f"Fetching page {page_num}/{total_pages}: {page_url}")
+                driver.get(page_url)
 
-            # Find all article items in the news list
-            news_list = driver.find_element(By.CSS_SELECTOR, 'ul[data-test="news-list"]')
-            article_items = news_list.find_elements(By.CSS_SELECTOR, 'li')
+                wait = WebDriverWait(driver, 10)
+                wait.until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'ul[data-test="news-list"]'))
+                )
 
-            for item in article_items:
-                try:
-                    # Get title and URL from link
-                    link = item.find_element(By.CSS_SELECTOR, 'a[data-test="article-title-link"]')
-                    url = link.get_attribute("href")
-                    title = link.text.strip()
+                # Find all article items in the news list
+                news_list = driver.find_element(By.CSS_SELECTOR, 'ul[data-test="news-list"]')
+                article_items = news_list.find_elements(By.CSS_SELECTOR, 'li')
 
-                    if not url or not title:
+                page_articles = 0
+                for item in article_items:
+                    try:
+                        # Get title and URL from link
+                        link = item.find_element(By.CSS_SELECTOR, 'a[data-test="article-title-link"]')
+                        url = link.get_attribute("href")
+                        title = link.text.strip()
+
+                        if not url or not title:
+                            continue
+
+                        # Get description
+                        description = ''
+                        try:
+                            desc_elem = item.find_element(By.CSS_SELECTOR, 'p[data-test="article-description"]')
+                            description = desc_elem.text.strip()
+                        except Exception:
+                            pass
+
+                        # Get published date
+                        published_date = None
+                        try:
+                            time_elem = item.find_element(By.CSS_SELECTOR, 'time[data-test="article-publish-date"]')
+                            datetime_attr = time_elem.get_attribute('datetime')
+                            if datetime_attr:
+                                # Extract date from "2025-12-11 17:24:48" format
+                                published_date = datetime_attr.split(' ')[0]
+                        except Exception:
+                            pass
+
+                        # Store the article data
+                        self._articles_cache.append({
+                            'url': url,
+                            'title': title,
+                            'content': description,
+                            'published_date': published_date
+                        })
+                        urls.append(url)
+                        page_articles += 1
+                        logger.debug(f"Extracted: {title[:50]}... ({published_date})")
+
+                    except Exception as e:
+                        logger.debug(f"Failed to extract article from list item: {e}")
                         continue
 
-                    # Get description
-                    description = ''
-                    try:
-                        desc_elem = item.find_element(By.CSS_SELECTOR, 'p[data-test="article-description"]')
-                        description = desc_elem.text.strip()
-                    except Exception:
-                        pass
+                logger.info(f"Page {page_num}: found {page_articles} articles")
 
-                    # Get published date
-                    published_date = None
-                    try:
-                        time_elem = item.find_element(By.CSS_SELECTOR, 'time[data-test="article-publish-date"]')
-                        datetime_attr = time_elem.get_attribute('datetime')
-                        if datetime_attr:
-                            # Extract date from "2025-12-11 17:24:48" format
-                            published_date = datetime_attr.split(' ')[0]
-                    except Exception:
-                        pass
+            except Exception as e:
+                logger.error(f"Failed to get articles from page {page_url}: {e}")
+                continue
 
-                    # Store the article data
-                    self._articles_cache.append({
-                        'url': url,
-                        'title': title,
-                        'content': description,
-                        'published_date': published_date
-                    })
-                    urls.append(url)
-                    logger.debug(f"Extracted: {title[:50]}... ({published_date})")
-
-                except Exception as e:
-                    logger.debug(f"Failed to extract article from list item: {e}")
-                    continue
-
-            logger.info(f"Found {len(urls)} articles from Investing.com")
-
-        except Exception as e:
-            logger.error(f"Failed to get articles: {e}")
+        logger.info(f"Total: found {len(urls)} articles from {total_pages} page(s)")
 
         return urls
 

@@ -25,9 +25,10 @@ crawl-date: ## Crawl specific date (use date=YYYY-MM-DD)
 		docker compose run --rm crawler python main.py --from $(date) --to $(date); \
 	fi
 
-crawl-range: ## Crawl date range (use from=YYYY-MM-DD to=YYYY-MM-DD)
+crawl-range: ## Crawl range: dates (from=YYYY-MM-DD) or pages (from=1 to=100)
 	@if [ -z "$(from)" ]; then \
-		echo "Usage: make crawl-range from=2024-11-01 to=2024-11-30"; \
+		echo "Usage: make crawl-range from=2024-11-01 to=2024-11-30  # date range"; \
+		echo "       make crawl-range from=1 to=100                  # page range"; \
 	else \
 		docker compose run --rm crawler python main.py --from $(from) --to $(or $(to),$(from)); \
 	fi

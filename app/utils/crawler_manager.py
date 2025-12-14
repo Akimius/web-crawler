@@ -30,6 +30,7 @@ class CrawlerManager:
     def __init__(self, db_path: str, user_agent: str = None,
                  request_delay: float = 1.0, timeout: int = 30,
                  start_date: str = None, end_date: str = None,
+                 page_start: int = None, page_end: int = None,
                  data_storage: str = 'db', csv_dir: str = 'data'):
         # Initialize storage manager for DB and/or CSV
         self.storage = StorageManager(data_storage, db_path, csv_dir)
@@ -42,6 +43,8 @@ class CrawlerManager:
         self.timeout = timeout
         self.start_date = start_date
         self.end_date = end_date
+        self.page_start = page_start
+        self.page_end = page_end
 
         self.stats = {
             'sources_crawled': 0,
@@ -86,7 +89,9 @@ class CrawlerManager:
             request_delay=self.request_delay,
             timeout=self.timeout,
             start_date=self.start_date,
-            end_date=self.end_date
+            end_date=self.end_date,
+            page_start=self.page_start,
+            page_end=self.page_end
         )
         
         try:

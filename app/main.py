@@ -23,6 +23,17 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+
+def parse_range_value(value: str) -> tuple:
+    """Detect if value is numeric (page) or date format.
+    Returns (is_page, parsed_value)"""
+    if value is None:
+        return (False, None)
+    if value.isdigit():
+        return (True, int(value))  # Page number
+    return (False, value)  # Date string (YYYY-MM-DD)
+
+
 def init_sources(manager: CrawlerManager):
     """Initialize default news sources"""
     sources = [
@@ -75,14 +86,17 @@ Examples:
   # Crawl today's articles (default)
   python main.py
 
-  # Crawl specific date
+  # Crawl specific date (RBCUkraineCrawler)
   python main.py --from 2024-11-15 --to 2024-11-15
 
-  # Crawl date range
+  # Crawl date range (RBCUkraineCrawler)
   python main.py --from 2024-11-01 --to 2024-11-30
 
-  # Crawl from date to today
-  python main.py --from 2024-11-01
+  # Crawl page range (InvestingCrawler)
+  python main.py --from 1 --to 100
+
+  # Crawl single page
+  python main.py --from 50
         '''
     )
 
@@ -114,9 +128,20 @@ Examples:
     data_storage = os.getenv('DATA_STORAGE', 'db')
     csv_dir = os.getenv('CSV_DIR', 'data')
 
-    # CLI arguments override environment variables
-    start_date = args.start_date  # Format: YYYY-MM-DD
-    end_date = args.end_date      # Format: YYYY-MM-DD
+    # Detect type of --from/--to values (page numbers vs dates)
+    is_page_from, from_val = parse_range_value(args.start_date)
+    is_page_to, to_val = parse_range_value(args.end_date)
+
+    if is_page_from or is_page_to:
+        # Page-based crawling (e.g., InvestingCrawler)
+        page_start = from_val if is_page_from else 1
+        page_end = to_val if is_page_to else page_start
+        start_date = end_date = None
+    else:
+        # Date-based crawling (e.g., RBCUkraineCrawler)
+        start_date = from_val
+        end_date = to_val
+        page_start = page_end = None
 
     # Setup logging
     setup_logging(log_level=log_level, log_file=log_file)
@@ -125,10 +150,13 @@ Examples:
     logger.info("News Crawler Starting")
     logger.info("="*60)
 
-    # Log date filtering if configured
+    # Log filtering configuration
     if start_date or end_date:
         date_range = f"from {start_date or 'any'} to {end_date or 'any'}"
         logger.info(f"Date filtering enabled: {date_range}")
+    if page_start or page_end:
+        page_range = f"from page {page_start} to page {page_end}"
+        logger.info(f"Page range enabled: {page_range}")
 
     # Ensure data directory exists
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -146,6 +174,8 @@ Examples:
         timeout=timeout,
         start_date=start_date,
         end_date=end_date,
+        page_start=page_start,
+        page_end=page_end,
         data_storage=data_storage,
         csv_dir=csv_dir
     )
