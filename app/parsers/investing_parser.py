@@ -1,9 +1,10 @@
 import logging
-import os
+import time
 from typing import List, Dict, Any, Optional
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from scrapers.base_crawler import BaseCrawler
 
 logger = logging.getLogger(__name__)
@@ -45,38 +46,69 @@ class InvestingCrawler(BaseCrawler):
             logger.info("Attempting to log in to Investing.com")
             driver.get("https://www.investing.com")
 
-            wait = WebDriverWait(driver, 3)
+            wait = WebDriverWait(driver, 15)
+
+            # Try to dismiss cookie consent popup if present
+            try:
+                cookie_btn = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable(
+                        (By.CSS_SELECTOR, '#onetrust-accept-btn-handler, [id*="accept"], button[class*="accept"]'))
+                )
+                cookie_btn.click()
+                logger.debug("Dismissed cookie consent popup")
+                time.sleep(1)
+            except TimeoutException:
+                pass
 
             # Click sign-in button to open login modal
             sign_in_btn = wait.until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, 'a[data-test="sign-in-button"], .login-btn, [class*="signIn"]'))
+                EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Sign In')]/.."))
             )
             sign_in_btn.click()
+            time.sleep(2)
+
+            # Click "Sign in with Email" button (site shows social login options first)
+            email_login_btn = wait.until(
+                EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, 'button[class*="email"], a[class*="email"]'))
+            )
+            email_login_btn.click()
+            time.sleep(1)
 
             # Wait for login form and fill credentials
             email_field = wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, 'input[type="email"], input[name="email"], #loginFormUser_email'))
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, 'input[type="email"], input[name="email"], input[placeholder*="mail"]'))
             )
             email_field.clear()
             email_field.send_keys(self._email)
 
-            password_field = driver.find_element(By.CSS_SELECTOR, 'input[type="password"], input[name="password"], #loginForm_password')
+            password_field = driver.find_element(
+                By.CSS_SELECTOR, 'input[type="password"], input[name="password"]')
             password_field.clear()
             password_field.send_keys(self._password)
 
-            # Submit login form
-            submit_btn = driver.find_element(By.CSS_SELECTOR, 'button[type="submit"], input[type="submit"], .login-btn-submit')
-            submit_btn.click()
+            # Submit login form using JS click for reliability
+            submit_btn = driver.find_element(
+                By.CSS_SELECTOR, 'button[type="submit"], input[type="submit"]')
+            driver.execute_script("arguments[0].scrollIntoView(true);", submit_btn)
+            time.sleep(0.5)
+            driver.execute_script("arguments[0].click();", submit_btn)
 
-            # Wait for login to complete (check for user menu or profile element)
+            # Wait for login to complete
+            time.sleep(3)
             wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, '[data-test="user-menu"], .user-menu, [class*="userMenu"]'))
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, '[data-test="user-menu"], .user-menu, [class*="userMenu"], [class*="avatar"], [class*="profile"]'))
             )
 
             self._logged_in = True
             logger.info("Successfully logged in to Investing.com")
             return True
 
+        except TimeoutException as e:
+            logger.error(f"Login timeout - element not found: {e}")
+            return False
         except Exception as e:
             logger.error(f"Failed to log in to Investing.com: {e}")
             return False
