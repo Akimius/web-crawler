@@ -46,19 +46,19 @@ class InvestingCrawler(BaseCrawler):
             logger.info("Attempting to log in to Investing.com")
             driver.get("https://www.investing.com")
 
-            wait = WebDriverWait(driver, 15)
+            wait = WebDriverWait(driver, 5)
 
             # Try to dismiss cookie consent popup if present
-            try:
-                cookie_btn = WebDriverWait(driver, 5).until(
-                    EC.element_to_be_clickable(
-                        (By.CSS_SELECTOR, '#onetrust-accept-btn-handler, [id*="accept"], button[class*="accept"]'))
-                )
-                cookie_btn.click()
-                logger.debug("Dismissed cookie consent popup")
-                time.sleep(1)
-            except TimeoutException:
-                pass
+            # try:
+            #     cookie_btn = WebDriverWait(driver, 5).until(
+            #         EC.element_to_be_clickable(
+            #             (By.CSS_SELECTOR, '#onetrust-accept-btn-handler, [id*="accept"], button[class*="accept"]'))
+            #     )
+            #     cookie_btn.click()
+            #     logger.debug("Dismissed cookie consent popup")
+            #     time.sleep(1)
+            # except TimeoutException:
+            #     pass
 
             # Click sign-in button to open login modal
             sign_in_btn = wait.until(
