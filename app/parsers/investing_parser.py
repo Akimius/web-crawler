@@ -229,33 +229,56 @@ class InvestingCrawler(BaseCrawler):
         driver = self._get_driver()
 
         try:
+            # Rate limiting between article fetches
+            time.sleep(self.request_delay)
+
             logger.info(f"Fetching article: {cached['title'][:50]}...")
             driver.get(url)
 
+            # Wait for page to load (check for body first)
             wait = WebDriverWait(driver, 10)
+            wait.until(EC.presence_of_element_located((By.TAG_NAME, 'body')))
 
-            # Wait for article content to load
-            wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, 'div#article'))
-            )
+            # Handle Cloudflare challenge - wait up to 15 seconds for it to clear
+            for _ in range(15):
+                if "just a moment" not in driver.title.lower():
+                    break
+                logger.debug("Waiting for Cloudflare challenge...")
+                time.sleep(1)
 
-            # Extract article text from the WYSIWYG content div
+            # Give page time to render JS content
+            time.sleep(2)
+
+            # Try multiple selectors for article content
             content = ''
-            try:
-                article_div = driver.find_element(
-                    By.CSS_SELECTOR,
-                    'div#article .article_WYSIWYG__O0uhw'
-                )
-                # Get text only (strips all HTML)
-                content = article_div.text.strip()
-            except NoSuchElementException:
-                # Fallback: try to get any text from article div
+            selectors = [
+                'div#article .article_WYSIWYG__O0uhw',
+                'div#article .articlePage',
+                'div#article',
+                'article .article-content',
+                '.article-content',
+                '[data-test="article-content"]',
+            ]
+
+            for selector in selectors:
                 try:
-                    article_div = driver.find_element(By.CSS_SELECTOR, 'div#article')
+                    article_div = driver.find_element(By.CSS_SELECTOR, selector)
                     content = article_div.text.strip()
+                    if content and len(content) > 100:  # Meaningful content
+                        logger.info(f"Extracted {len(content)} chars using selector: {selector}")
+                        break
                 except NoSuchElementException:
-                    logger.warning(f"Could not find article content for: {url}")
-                    content = cached.get('description', '')
+                    continue
+
+            if not content or len(content) < 100:
+                # Debug: save screenshot to see what's on the page
+                try:
+                    driver.save_screenshot('/app/data/debug_article.png')
+                    logger.warning(f"Saved debug screenshot, page title: {driver.title}")
+                except Exception:
+                    pass
+                logger.warning(f"Could not extract content, using description for: {url}")
+                content = cached.get('description', '')
 
             return {
                 'title': cached['title'],
@@ -265,7 +288,6 @@ class InvestingCrawler(BaseCrawler):
 
         except TimeoutException:
             logger.error(f"Timeout loading article: {url}")
-            # Return cached description as fallback
             return {
                 'title': cached['title'],
                 'content': cached.get('description', ''),
