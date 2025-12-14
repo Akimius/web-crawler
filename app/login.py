@@ -45,22 +45,93 @@ def login() -> bool:
 
         # Click sign-in button to open login modal
         print("Looking for sign-in button...")
-        sign_in_btn = wait.until(
-            EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, 'a[data-test="sign-in-button"], .login-btn, [class*="signIn"], [data-test="header-signin-button"]'))
-        )
-        print(f"Found sign-in button: {sign_in_btn.text}")
+
+        # Try multiple strategies to find sign-in button
+        sign_in_btn = None
+        selectors = [
+            (By.XPATH, "//a[contains(text(), 'Sign In')]"),
+            (By.XPATH, "//button[contains(text(), 'Sign In')]"),
+            (By.XPATH, "//span[contains(text(), 'Sign In')]/.."),
+            (By.XPATH, "//*[contains(@class, 'sign') and contains(@class, 'in')]"),
+            (By.CSS_SELECTOR, 'a[data-test="sign-in-button"]'),
+            (By.CSS_SELECTOR, '[data-test*="signin"]'),
+            (By.CSS_SELECTOR, 'header a[href*="login"]'),
+            (By.CSS_SELECTOR, 'header a[href*="sign"]'),
+        ]
+
+        for by, selector in selectors:
+            try:
+                sign_in_btn = WebDriverWait(driver, 3).until(
+                    EC.element_to_be_clickable((by, selector))
+                )
+                print(f"Found sign-in button with: {by}='{selector}'")
+                break
+            except TimeoutException:
+                print(f"  Not found: {selector}")
+                continue
+
+        if not sign_in_btn:
+            # Debug: print all links in header
+            print("\nDebug - Links in page header:")
+            header_links = driver.find_elements(By.CSS_SELECTOR, 'header a, nav a')
+            for link in header_links[:20]:
+                href = link.get_attribute('href') or ''
+                text = link.text.strip() or link.get_attribute('aria-label') or ''
+                if text or 'sign' in href.lower() or 'login' in href.lower():
+                    print(f"  '{text}' -> {href}")
+            raise TimeoutException("Could not find sign-in button")
+
         sign_in_btn.click()
         time.sleep(2)
 
         driver.save_screenshot('/app/data/debug_after_signin_click.png')
         print("Screenshot saved to /app/data/debug_after_signin_click.png")
 
+        # Click "Sign in with Email" button (site shows social login options first)
+        print("Looking for 'Sign in with Email' option...")
+        email_login_btn = None
+        email_selectors = [
+            (By.XPATH, "//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'sign in with email')]"),
+            (By.XPATH, "//button[contains(text(), 'Email')]"),
+            (By.XPATH, "//a[contains(text(), 'Email')]"),
+            (By.XPATH, "//*[contains(text(), 'with Email')]"),
+            (By.CSS_SELECTOR, '[data-test*="email"]'),
+            (By.CSS_SELECTOR, 'button[class*="email"], a[class*="email"]'),
+        ]
+
+        for by, selector in email_selectors:
+            try:
+                email_login_btn = WebDriverWait(driver, 3).until(
+                    EC.element_to_be_clickable((by, selector))
+                )
+                print(f"Found email login with: {by}='{selector}'")
+                break
+            except TimeoutException:
+                print(f"  Not found: {selector}")
+                continue
+
+        if not email_login_btn:
+            # Debug: print all buttons/links in modal
+            print("\nDebug - Buttons in modal:")
+            buttons = driver.find_elements(By.CSS_SELECTOR, 'button, a[role="button"], [class*="btn"]')
+            for btn in buttons:
+                text = btn.text.strip()
+                if text and len(text) < 50:
+                    print(f"  '{text}'")
+            raise TimeoutException("Could not find 'Sign in with Email' button")
+
+        email_login_btn.click()
+        print("Clicked 'Sign in with Email'")
+        time.sleep(1)
+
+        driver.save_screenshot('/app/data/debug_after_email_option.png')
+        print("Screenshot saved to /app/data/debug_after_email_option.png")
+
         # Wait for login form and fill credentials
         print("Looking for email field...")
         email_field = wait.until(
             EC.presence_of_element_located(
-                (By.CSS_SELECTOR, 'input[type="email"], input[name="email"], #loginFormUser_email'))
+                (By.CSS_SELECTOR, 'input[type="email"], input[name="email"], input[placeholder*="mail"]'))
         )
         email_field.clear()
         email_field.send_keys(email)
@@ -75,13 +146,34 @@ def login() -> bool:
         # Submit login form
         submit_btn = driver.find_element(By.CSS_SELECTOR,
                                          'button[type="submit"], input[type="submit"], .login-btn-submit')
-        submit_btn.click()
+        driver.execute_script("arguments[0].scrollIntoView(true);", submit_btn)
+        time.sleep(0.5)
+        driver.execute_script("arguments[0].click();", submit_btn)  # Use JS click for reliability
         print("Submit clicked")
 
-        # Wait for login to complete
+        driver.save_screenshot('/app/data/debug_after_submit.png')
+        print("Screenshot saved to /app/data/debug_after_submit.png")
+
+        # Wait a moment for any error messages to appear
+        time.sleep(3)
+
+        # Check for error messages
+        try:
+            error_elem = driver.find_element(By.CSS_SELECTOR, '[class*="error"], [class*="Error"], [role="alert"], .alert')
+            error_text = error_elem.text
+            if error_text:
+                print(f"Login error message: {error_text}")
+        except NoSuchElementException:
+            print("No error message found")
+
+        driver.save_screenshot('/app/data/debug_after_wait.png')
+        print("Screenshot saved to /app/data/debug_after_wait.png")
+
+        # Wait for login to complete (check for user menu or profile element)
+        print("Waiting for login to complete...")
         wait.until(
             EC.presence_of_element_located(
-                (By.CSS_SELECTOR, '[data-test="user-menu"], .user-menu, [class*="userMenu"]'))
+                (By.CSS_SELECTOR, '[data-test="user-menu"], .user-menu, [class*="userMenu"], [class*="avatar"], [class*="profile"]'))
         )
 
         logger.info("Successfully logged in to Investing.com")
