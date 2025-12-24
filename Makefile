@@ -1,4 +1,4 @@
-.PHONY: help setup build crawl crawl-date crawl-range start stop restart logs clean stats sources articles search
+.PHONY: help setup build crawl crawl-date crawl-range newsapi newsapi-range start stop restart logs clean stats sources articles search
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -31,6 +31,16 @@ crawl-range: ## Crawl range: dates (from=YYYY-MM-DD) or pages (from=1 to=100)
 		echo "       make crawl-range from=1 to=100                  # page range"; \
 	else \
 		docker compose run --rm crawler python main.py --from $(from) --to $(or $(to),$(from)); \
+	fi
+
+newsapi: ## Fetch gold news from NewsAPI (today's articles)
+	docker compose run --rm crawler python main.py --source newsapi
+
+newsapi-range: ## Fetch NewsAPI with date range (from=YYYY-MM-DD to=YYYY-MM-DD)
+	@if [ -z "$(from)" ]; then \
+		echo "Usage: make newsapi-range from=2025-12-01 to=2025-12-24"; \
+	else \
+		docker compose run --rm crawler python main.py --source newsapi --from $(from) --to $(or $(to),$(from)); \
 	fi
 
 stop: ## Stop scheduled crawler
