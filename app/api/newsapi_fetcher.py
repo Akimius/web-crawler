@@ -10,6 +10,8 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Callable
 
+from newspaper import Article, ArticleException
+
 from api.base_fetcher import BaseAPIFetcher
 
 logger = logging.getLogger(__name__)
@@ -29,6 +31,7 @@ class NewsAPIFetcher(BaseAPIFetcher):
         sort_by: str = "publishedAt",
         page_size: int = None,
         max_pages: int = None,
+        fetch_full_content: bool = False,
         **kwargs
     ):
         """
@@ -41,6 +44,7 @@ class NewsAPIFetcher(BaseAPIFetcher):
             sort_by: Sort order (publishedAt, relevancy, popularity)
             page_size: Articles per page (defaults to NEWSAPI_PAGE_SIZE or 10)
             max_pages: Max pages to fetch (defaults to NEWSAPI_MAX_PAGES or 10)
+            fetch_full_content: If True, fetch full article content from URLs
             **kwargs: Additional args passed to BaseAPIFetcher
         """
         # Get API key from environment if not provided
@@ -57,6 +61,7 @@ class NewsAPIFetcher(BaseAPIFetcher):
         self.sort_by = sort_by
         self.page_size = page_size or int(os.getenv("NEWSAPI_PAGE_SIZE", 10))
         self.max_pages = max_pages or int(os.getenv("NEWSAPI_MAX_PAGES", 10))
+        self.fetch_full_content = fetch_full_content
 
     def _get_headers(self) -> Dict[str, str]:
         """Get headers with API key."""
@@ -94,6 +99,40 @@ class NewsAPIFetcher(BaseAPIFetcher):
             logger.warning(f"Invalid date format: {iso_date}")
             return None
 
+    def _fetch_article_content(self, url: str) -> Optional[str]:
+        """
+        Fetch full article content from URL using newspaper3k.
+
+        Args:
+            url: Article URL to fetch
+
+        Returns:
+            Full article text or None if fetch fails
+        """
+        if not url:
+            return None
+
+        try:
+            self._rate_limit()
+            article = Article(url)
+            article.download()
+            article.parse()
+
+            content = article.text
+            if content and len(content) > 100:
+                logger.debug(f"Fetched full content ({len(content)} chars) from {url}")
+                return content
+            else:
+                logger.debug(f"Content too short from {url}, using API content")
+                return None
+
+        except ArticleException as e:
+            logger.warning(f"Failed to fetch article from {url}: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Unexpected error fetching {url}: {e}")
+            return None
+
     def _transform_article(self, raw: Dict[str, Any]) -> Dict[str, Any]:
         """
         Transform NewsAPI article format to internal format.
@@ -120,13 +159,23 @@ class NewsAPIFetcher(BaseAPIFetcher):
             "url": "..."
         }
         """
+        url = raw.get("url", "")
+        api_content = raw.get("content") or raw.get("description", "")
+
+        # Fetch full content if enabled
+        if self.fetch_full_content and url:
+            full_content = self._fetch_article_content(url)
+            content = full_content if full_content else api_content
+        else:
+            content = api_content
+
         return {
             "title": raw.get("title", ""),
-            "content": raw.get("content") or raw.get("description", ""),
+            "content": content,
             "author": raw.get("author", ""),
             "published_date": self._parse_published_date(raw.get("publishedAt")),
             "summary": raw.get("description", ""),
-            "url": raw.get("url", "")
+            "url": url
         }
 
     def fetch_articles(

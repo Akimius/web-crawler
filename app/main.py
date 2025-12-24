@@ -105,6 +105,9 @@ Examples:
 
   # Crawl specific source (NewsAPI)
   python main.py --source newsapi --from 2025-12-01 --to 2025-12-24
+
+  # Fetch full article content (slower)
+  python main.py --source newsapi --from 2025-12-01 --fetch-content
         '''
     )
 
@@ -127,6 +130,13 @@ Examples:
         dest='source',
         type=str,
         help='Specific source to crawl (e.g., newsapi, investing). If not specified, crawls all sources.'
+    )
+
+    parser.add_argument(
+        '--fetch-content',
+        dest='fetch_content',
+        action='store_true',
+        help='Fetch full article content from URLs (slower, but gets complete text)'
     )
 
     args = parser.parse_args()
@@ -192,7 +202,8 @@ Examples:
         page_start=page_start,
         page_end=page_end,
         data_storage=data_storage,
-        csv_dir=csv_dir
+        csv_dir=csv_dir,
+        fetch_full_content=args.fetch_content
     )
     
     # Initialize sources

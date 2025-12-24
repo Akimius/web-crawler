@@ -38,7 +38,8 @@ class CrawlerManager:
                  request_delay: float = 1.0, timeout: int = 30,
                  start_date: str = None, end_date: str = None,
                  page_start: int = None, page_end: int = None,
-                 data_storage: str = 'db', csv_dir: str = 'data'):
+                 data_storage: str = 'db', csv_dir: str = 'data',
+                 fetch_full_content: bool = False):
         # Initialize storage manager for DB and/or CSV
         self.storage = StorageManager(data_storage, db_path, csv_dir)
 
@@ -52,6 +53,7 @@ class CrawlerManager:
         self.end_date = end_date
         self.page_start = page_start
         self.page_end = page_end
+        self.fetch_full_content = fetch_full_content
 
         self.stats = {
             'sources_crawled': 0,
@@ -150,13 +152,16 @@ class CrawlerManager:
     ) -> Dict[str, int]:
         """Fetch articles from an API source"""
         logger.info(f"Fetching API source: {source['name']} ({source['url']})")
+        if self.fetch_full_content:
+            logger.info("Full content fetching enabled (slower)")
 
         fetcher_cls = self.API_FETCHERS[parser_class]
         fetcher = fetcher_cls(
             request_delay=self.request_delay,
             timeout=self.timeout,
             start_date=self.start_date,
-            end_date=self.end_date
+            end_date=self.end_date,
+            fetch_full_content=self.fetch_full_content
         )
 
         try:
