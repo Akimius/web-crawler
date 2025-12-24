@@ -4,6 +4,8 @@ from typing import List, Dict, Any, Type
 from models.database import Source
 from models.storage import StorageManager
 from scrapers.base_crawler import BaseCrawler
+from api.base_fetcher import BaseAPIFetcher
+from api.newsapi_fetcher import NewsAPIFetcher
 # Commented out other parsers - only using RBC Ukraine for now
 # from parsers.bbc_parser import BBCNewsCrawler
 # from parsers.guardian_parser import GuardianNewsCrawler
@@ -25,6 +27,11 @@ class CrawlerManager:
         # 'BBCNewsCrawler': BBCNewsCrawler,
         # 'GuardianNewsCrawler': GuardianNewsCrawler,
         # 'UkrPravdaCrawler': UkrPravdaCrawler,
+    }
+
+    # Registry of available API fetchers
+    API_FETCHERS: Dict[str, Type[BaseAPIFetcher]] = {
+        'NewsAPIFetcher': NewsAPIFetcher,
     }
     
     def __init__(self, db_path: str, user_agent: str = None,
@@ -56,32 +63,40 @@ class CrawlerManager:
     
     def add_source(self, name: str, url: str, parser_class: str) -> int:
         """Add a new news source"""
-        if parser_class not in self.PARSERS:
-            raise ValueError(f"Parser '{parser_class}' not found. Available: {list(self.PARSERS.keys())}")
-        
+        # Check both PARSERS and API_FETCHERS registries
+        if parser_class not in self.PARSERS and parser_class not in self.API_FETCHERS:
+            available = list(self.PARSERS.keys()) + list(self.API_FETCHERS.keys())
+            raise ValueError(f"Parser '{parser_class}' not found. Available: {available}")
+
         existing = self.source_model.get_by_url(url)
         if existing:
             logger.info(f"Source already exists: {name}")
             return existing['id']
-        
+
         return self.source_model.create(name, url, parser_class)
     
     def crawl_source(self, source_id: int) -> Dict[str, int]:
-        """Crawl a single source"""
+        """Crawl a single source (web crawler or API fetcher)"""
         source = self.source_model.get_by_id(source_id)
         if not source:
             raise ValueError(f"Source with ID {source_id} not found")
-        
+
         if not source['is_active']:
             logger.warning(f"Source is inactive: {source['name']}")
             return {'found': 0, 'saved': 0, 'skipped': 0}
-        
+
         parser_class = source['parser_class']
+
+        # Check if this is an API fetcher
+        if parser_class in self.API_FETCHERS:
+            return self._fetch_api_source(source_id, source, parser_class)
+
+        # Otherwise, use web crawler
         if parser_class not in self.PARSERS:
             raise ValueError(f"Parser '{parser_class}' not found")
-        
+
         logger.info(f"Crawling source: {source['name']} ({source['url']})")
-        
+
         # Initialize crawler
         crawler_cls = self.PARSERS[parser_class]
         crawler = crawler_cls(
@@ -93,7 +108,7 @@ class CrawlerManager:
             page_start=self.page_start,
             page_end=self.page_end
         )
-        
+
         try:
             # Track stats
             stats = {'found': 0, 'saved': 0, 'skipped': 0}
@@ -119,13 +134,57 @@ class CrawlerManager:
             logger.info(f"Crawl complete: {stats['saved']} saved, {stats['skipped']} skipped")
 
             return stats
-            
+
         except Exception as e:
             logger.error(f"Error crawling source {source['name']}: {e}", exc_info=True)
             raise
-        
+
         finally:
             crawler.close()
+
+    def _fetch_api_source(
+        self,
+        source_id: int,
+        source: Dict[str, Any],
+        parser_class: str
+    ) -> Dict[str, int]:
+        """Fetch articles from an API source"""
+        logger.info(f"Fetching API source: {source['name']} ({source['url']})")
+
+        fetcher_cls = self.API_FETCHERS[parser_class]
+        fetcher = fetcher_cls(
+            request_delay=self.request_delay,
+            timeout=self.timeout,
+            start_date=self.start_date,
+            end_date=self.end_date
+        )
+
+        try:
+            stats = fetcher.fetch_and_store(
+                storage=self.storage,
+                source_id=source_id,
+                source_name=source['name']
+            )
+
+            # Update source last_crawled timestamp
+            self.source_model.update_last_crawled(source_id)
+
+            logger.info(
+                f"API fetch complete: {stats['saved']} saved, "
+                f"{stats['skipped']} skipped"
+            )
+
+            return stats
+
+        except Exception as e:
+            logger.error(
+                f"Error fetching API source {source['name']}: {e}",
+                exc_info=True
+            )
+            raise
+
+        finally:
+            fetcher.close()
     
     def crawl_all_sources(self) -> Dict[str, Any]:
         """Crawl all active sources"""
@@ -175,5 +234,5 @@ class CrawlerManager:
     
     @classmethod
     def get_available_parsers(cls) -> List[str]:
-        """Get list of available parser classes"""
-        return list(cls.PARSERS.keys())
+        """Get list of available parser classes (including API fetchers)"""
+        return list(cls.PARSERS.keys()) + list(cls.API_FETCHERS.keys())

@@ -61,6 +61,11 @@ def init_sources(manager: CrawlerManager):
             'name': 'Investing.com Gold News',
             'url': 'https://www.investing.com/commodities/gold-news/12',
             'parser_class': 'InvestingCrawler'
+        },
+        {
+            'name': 'NewsAPI Gold News',
+            'url': 'https://newsapi.org/v2/everything',
+            'parser_class': 'NewsAPIFetcher'
         }
     ]
     
@@ -97,6 +102,9 @@ Examples:
 
   # Crawl single page
   python main.py --from 50
+
+  # Crawl specific source (NewsAPI)
+  python main.py --source newsapi --from 2025-12-01 --to 2025-12-24
         '''
     )
 
@@ -112,6 +120,13 @@ Examples:
         dest='end_date',
         type=str,
         help='End date for crawling (format: YYYY-MM-DD). Defaults to today.'
+    )
+
+    parser.add_argument(
+        '--source',
+        dest='source',
+        type=str,
+        help='Specific source to crawl (e.g., newsapi, investing). If not specified, crawls all sources.'
     )
 
     args = parser.parse_args()
@@ -196,7 +211,33 @@ Examples:
     
     # Run crawler
     logger.info("Starting crawl...")
-    stats = manager.crawl_all_sources()
+
+    # Filter by source if specified
+    if args.source:
+        source_filter = args.source.lower()
+        matching_source = None
+        for source in sources:
+            if source_filter in source['name'].lower() or \
+               source_filter in source['parser_class'].lower():
+                matching_source = source
+                break
+
+        if matching_source:
+            logger.info(f"Crawling specific source: {matching_source['name']}")
+            result = manager.crawl_source(matching_source['id'])
+            stats = {
+                'sources_crawled': 1,
+                'articles_found': result['found'],
+                'articles_saved': result['saved'],
+                'articles_skipped': result['skipped'],
+                'errors': 0
+            }
+        else:
+            logger.error(f"Source not found: {args.source}")
+            logger.info(f"Available sources: {', '.join(s['name'] for s in sources)}")
+            sys.exit(1)
+    else:
+        stats = manager.crawl_all_sources()
     
     # Display results
     logger.info("="*60)
