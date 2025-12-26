@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 def login() -> bool:
-    email = os.environ.get('INVESTING_EMAIL', 'akim.savchenko@gmail.com')
-    password = os.environ.get('INVESTING_PASSWORD', 'ab123456789')
+    email = os.environ.get('INVESTING_EMAIL', '')
+    password = os.environ.get('INVESTING_PASSWORD', '')
 
     from browser import get_chrome_driver
     driver = get_chrome_driver()
